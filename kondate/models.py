@@ -45,4 +45,5 @@ class Meal(models.Model):
 class RecipeIngredients(models.Model):
     recipe = models.ForeignKey(Recipe, on_delete=models.CASCADE, null=True)
     ingredient = models.ForeignKey(Ingredient, on_delete=models.CASCADE, null=True)
+    amount = models.CharField(max_length=50, null=True)
 

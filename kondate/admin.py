@@ -3,7 +3,13 @@ from django.contrib import admin
 from .models import *
 
 
+class RecipeIngredientsInline(admin.TabularInline):
+    model = Recipe.ingredients.through
+
 class RecipeAdmin(admin.ModelAdmin):
+    inlines = [
+        RecipeIngredientsInline,
+    ]
     fieldsets = [
         (None, {'fields': ['name_text']}),
         ('URL', {'fields': ['url_text'], 'classes': ['collapse']}),

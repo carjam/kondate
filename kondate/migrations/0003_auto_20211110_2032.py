@@ -118,6 +118,7 @@ initial_ingredients = (
     , 'lentils'
     , 'green beans'
     , 'kale'
+    , 'oregano'
 )
 
 def populate_ingredients(apps, schema_editor):

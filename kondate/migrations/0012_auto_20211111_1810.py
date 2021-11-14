@@ -121,7 +121,7 @@ green_beans = Ingredient.objects.get(name_text='green beans')
 kale = Ingredient.objects.get(name_text='kale')
 
 chicken_kabob = Recipe.objects.get(name_text='chicken kabob')
-basmatti_rice = Recipe.objects.get(name_text='basmatti rice & butter')
+basmatti_butter_rice = Recipe.objects.get(name_text='basmatti rice & butter')
 yogurt_dill = Recipe.objects.get(name_text='yogurt w/ dill')
 taco_rice = Recipe.objects.get(name_text='taco rice')
 tortilla_soup = Recipe.objects.get(name_text='tortilla soup')
@@ -156,14 +156,36 @@ chilean_dessert = Recipe.objects.get(name_text='chilean dessert')
 
 
 def populate(apps, schema_editor):
-    '''
-    kabob1 = RecipeIngredients(
-            recipe = chicken_kabob
-            , ingredient = mustard
-            , amount = ''
+    ri1 = RecipeIngredients(
+            recipe = basmatti_butter_rice
+            , ingredient = basmatti_rice
+            , amount = '300g'
     )
-    kabob1.save()
-    '''
+    ri1.save()
+    ri2 = RecipeIngredients(
+            recipe = basmatti_butter_rice
+            , ingredient = butter
+            , amount = '1 tablespoon'
+    )
+    ri2.save()
+    ri3 = RecipeIngredients(
+            recipe = basmatti_butter_rice
+            , ingredient = salt
+            , amount = '1 teaspoon'
+    )
+    ri3.save()
+
+    tumeric = Ingredient(name_text='tumeric')
+    tumeric.save()
+    ri4 = RecipeIngredients(
+            recipe = basmatti_butter_rice
+            , ingredient = tumeric
+            , amount = '1 teaspoon'
+    )
+    ri4.save()
+
+
+
 
 class Migration(migrations.Migration):
 

@@ -1,0 +1,57 @@
+{% extends 'kondate/base.html' %}
+{% block title %}{% if recipe %}Edit {{ recipe.name }}{% else %}New recipe{% endif %}{% endblock %}
+{% block content %}
+<div class="narrow">
+  <h1>{% if recipe %}Edit {{ recipe.name }}{% else %}New recipe{% endif %}</h1>
+  <form method="post" class="card form" id="recipe-form">
+    {% csrf_token %}
+    {% include 'kondate/_form_fields.html' %}
+
+    <h2>Ingredients</h2>
+    {{ formset.management_form }}
+    {% if formset.non_form_errors %}<div class="flash flash-error">{{ formset.non_form_errors|join:" " }}</div>{% endif %}
+    <datalist id="ingredient-names">{% for name in ingredient_names %}<option value="{{ name }}">{% endfor %}</datalist>
+    <div class="itemrows" id="itemrows">
+      <div class="itemrow itemhead muted small"><span>Ingredient</span><span>Amount</span><span>Remove</span></div>
+      {% for f in formset %}
+      <div class="itemrow">
+        <input type="text" name="{{ f.ingredient.html_name }}" value="{{ f.ingredient.value|default_if_none:'' }}" list="ingredient-names" aria-label="Ingredient" autocomplete="off">
+        <input type="text" name="{{ f.amount.html_name }}" value="{{ f.amount.value|default_if_none:'' }}" placeholder="e.g. 1/2 cup" aria-label="Amount">
+        <label class="del"><input type="checkbox" name="{{ f.DELETE.html_name }}" {% if f.DELETE.value %}checked{% endif %}><span class="sr">Remove</span></label>
+        {% for e in f.errors.values %}<small class="error">{{ e|join:" " }}</small>{% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+    <template id="itemrow-template">
+      <div class="itemrow">
+        <input type="text" name="items-__prefix__-ingredient" list="ingredient-names" aria-label="Ingredient" autocomplete="off">
+        <input type="text" name="items-__prefix__-amount" placeholder="e.g. 1/2 cup" aria-label="Amount">
+        <label class="del"><input type="checkbox" name="items-__prefix__-DELETE"><span class="sr">Remove</span></label>
+      </div>
+    </template>
+    <p><button class="btn" type="button" id="add-row">+ Another ingredient</button></p>
+    <p class="muted small">New ingredient names are added automatically; set their store section on the Ingredients page.</p>
+
+    <div class="actions">
+      <button class="btn primary" type="submit">Save recipe</button>
+      <a class="btn" href="{% if recipe %}{{ recipe.get_absolute_url }}{% else %}{% url 'kondate:recipe_list' %}{% endif %}">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+{% block script %}
+<script>
+  (function () {
+    var total = document.getElementById("id_items-TOTAL_FORMS");
+    var rows = document.getElementById("itemrows");
+    var tpl = document.getElementById("itemrow-template");
+    document.getElementById("add-row").addEventListener("click", function () {
+      var n = parseInt(total.value, 10);
+      var html = tpl.innerHTML.replace(/__prefix__/g, String(n));
+      rows.insertAdjacentHTML("beforeend", html);
+      total.value = String(n + 1);
+      rows.lastElementChild.querySelector("input").focus();
+    });
+  })();
+</script>
+{% endblock %}

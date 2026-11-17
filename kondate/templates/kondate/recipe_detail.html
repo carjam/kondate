@@ -1,0 +1,40 @@
+{% extends 'kondate/base.html' %}
+{% block title %}{{ recipe.name }}{% endblock %}
+{% block content %}
+<div class="narrow">
+  <p><a href="{% url 'kondate:recipe_list' %}">‹ Recipes</a></p>
+  <div class="pagehead">
+    <h1>{{ recipe.name }}</h1>
+    <div class="actions">
+      <a class="btn primary" href="{% url 'kondate:meal_new' %}?recipe={{ recipe.pk }}">Plan it</a>
+      <a class="btn" href="{% url 'kondate:recipe_edit' recipe.pk %}">Edit</a>
+    </div>
+  </div>
+  {% if recipe.url %}<p><a href="{{ recipe.url }}" target="_blank" rel="noopener noreferrer">{{ recipe.url|truncatechars:70 }} ↗</a></p>{% endif %}
+  {% if recipe.notes %}<p class="notes">{{ recipe.notes|linebreaksbr }}</p>{% endif %}
+
+  <h2>Ingredients</h2>
+  {% if recipe.items.all %}
+  <ul class="list card">
+    {% for item in recipe.items.all %}
+    <li><span>{{ item.ingredient.name }}</span>{% if item.amount %}<span class="muted">{{ item.amount }}</span>{% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">No ingredients yet — <a href="{% url 'kondate:recipe_edit' recipe.pk %}">add some</a> so this recipe shows up on shopping lists.</p>
+  {% endif %}
+
+  {% if upcoming %}
+  <h2>Coming up</h2>
+  <ul class="list">
+    {% for meal in upcoming %}<li><a href="{% url 'kondate:week_of' meal.date|date:'Y-m-d' %}">{{ meal.date|date:"D M j" }}</a> <span class="muted">{{ meal.get_slot_display }}</span></li>{% endfor %}
+  </ul>
+  {% endif %}
+
+  <form method="post" action="{% url 'kondate:recipe_delete' recipe.pk %}" class="danger-zone"
+        onsubmit="return confirm('Delete {{ recipe.name|escapejs }}?')">
+    {% csrf_token %}
+    <button class="linklike danger" type="submit">Delete recipe</button>
+  </form>
+</div>
+{% endblock %}

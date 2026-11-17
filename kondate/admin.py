@@ -1,25 +1,38 @@
 from django.contrib import admin
 
-from .models import *
+from .models import Ingredient, Meal, Recipe, RecipeIngredient, ShoppingExtra
 
 
-class RecipeIngredientsInline(admin.TabularInline):
-    model = Recipe.ingredients.through
+class RecipeIngredientInline(admin.TabularInline):
+    model = RecipeIngredient
+    autocomplete_fields = ["ingredient"]
+    extra = 1
 
+
+@admin.register(Recipe)
 class RecipeAdmin(admin.ModelAdmin):
-    inlines = [
-        RecipeIngredientsInline,
-    ]
-    fieldsets = [
-        (None, {'fields': ['name_text']}),
-        ('URL', {'fields': ['url_text'], 'classes': ['collapse']}),
-    ]
-    list_display = ('name_text', 'url_text')
-    list_filter = ['name_text']
-    search_fields = ['name_text']
+    inlines = [RecipeIngredientInline]
+    list_display = ["name", "url"]
+    search_fields = ["name", "notes"]
 
 
-admin.site.register(Recipe, RecipeAdmin)
-admin.site.register(Ingredient)
-admin.site.register(Variety)
-admin.site.register(Meal)
+@admin.register(Ingredient)
+class IngredientAdmin(admin.ModelAdmin):
+    list_display = ["name", "category", "is_staple"]
+    list_editable = ["category", "is_staple"]
+    list_filter = ["category", "is_staple"]
+    search_fields = ["name"]
+
+
+@admin.register(Meal)
+class MealAdmin(admin.ModelAdmin):
+    list_display = ["date", "slot", "recipe", "note"]
+    list_filter = ["slot"]
+    date_hierarchy = "date"
+    list_select_related = ["recipe"]
+    autocomplete_fields = ["recipe"]
+
+
+@admin.register(ShoppingExtra)
+class ShoppingExtraAdmin(admin.ModelAdmin):
+    list_display = ["week_start", "name", "checked"]

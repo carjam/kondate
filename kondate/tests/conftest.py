@@ -10,6 +10,8 @@ MONDAY = dt.date(2026, 11, 16)
 @pytest.fixture(autouse=True)
 def _test_env(settings, monkeypatch):
     settings.KONDATE_WEEK_START = 0
+    # Tests run with production settings in CI; the test client speaks plain HTTP.
+    settings.SECURE_SSL_REDIRECT = False
     settings.STORAGES = {
         **settings.STORAGES,
         "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},

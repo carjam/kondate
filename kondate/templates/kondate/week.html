@@ -1,0 +1,48 @@
+{% extends 'kondate/base.html' %}
+{% block title %}Week of {{ week_start|date:"M j" }}{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <div>
+    <h1>{{ week_start|date:"M j" }} – {{ week_end|date:"M j, Y" }}</h1>
+    <p class="muted">{{ planned_count }} meal{{ planned_count|pluralize }} planned
+      · <a href="{% url 'kondate:shopping_week' week_start|date:'Y-m-d' %}">shopping list →</a></p>
+  </div>
+  <div class="weeknav">
+    <a class="btn" href="{% url 'kondate:week_of' prev_week|date:'Y-m-d' %}" aria-label="Previous week">‹</a>
+    {% if week_start != this_week %}<a class="btn" href="{% url 'kondate:week' %}">This week</a>{% endif %}
+    <a class="btn" href="{% url 'kondate:week_of' next_week|date:'Y-m-d' %}" aria-label="Next week">›</a>
+  </div>
+</div>
+
+<div class="week">
+  {% for day in days %}
+  <section class="day{% if day.date == today %} today{% elif day.date < today %} past{% endif %}">
+    <header class="dayhead">
+      <span class="dow">{{ day.date|date:"D" }}</span>
+      <span class="dom">{{ day.date|date:"j" }}</span>
+      <a class="add" href="{% url 'kondate:meal_new' %}?date={{ day.date|date:'Y-m-d' }}" aria-label="Add a meal on {{ day.date|date:'l' }}">+</a>
+    </header>
+    {% if day.meals %}
+    <ul class="meals">
+      {% for meal in day.meals %}
+      <li class="meal">
+        <span class="slot slot-{{ meal.slot }}">{{ meal.get_slot_display }}</span>
+        <a class="mealname" href="{% url 'kondate:meal_edit' meal.pk %}">{{ meal.title }}</a>
+        {% if meal.recipe and meal.note %}<span class="muted small">{{ meal.note }}</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty"><a href="{% url 'kondate:meal_new' %}?date={{ day.date|date:'Y-m-d' }}">Plan something</a></p>
+    {% endif %}
+  </section>
+  {% endfor %}
+</div>
+
+{% if not planned_count %}
+<form method="post" action="{% url 'kondate:week_copy_previous' week_start|date:'Y-m-d' %}" class="center">
+  {% csrf_token %}
+  <button class="btn" type="submit">Copy last week's plan</button>
+</form>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,31 @@
+# Render Blueprint: New → Blueprint → pick this repo.
+# Database is external (Neon or Supabase free Postgres) via DATABASE_URL — see README.
+services:
+  - type: web
+    name: kondate
+    runtime: python
+    plan: free
+    branch: master
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
+    # Free plan has no pre-deploy hook or shell, so migrations and the first
+    # admin account run at boot. Both are idempotent.
+    startCommand: >-
+      python manage.py migrate --noinput &&
+      python manage.py ensure_superuser &&
+      gunicorn mysite.wsgi --workers 2 --timeout 60 --access-logfile -
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13.2"
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: DJANGO_SUPERUSER_USERNAME
+        sync: false
+      - key: DJANGO_SUPERUSER_PASSWORD
+        sync: false
+      - key: TIME_ZONE
+        value: America/Los_Angeles
+      - key: KONDATE_WEEK_START
+        value: "0"

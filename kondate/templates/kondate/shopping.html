@@ -1,0 +1,98 @@
+{% extends 'kondate/base.html' %}
+{% block title %}Shopping · {{ week_start|date:"M j" }}{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <div>
+    <h1>Shopping list</h1>
+    <p class="muted">For meals {{ week_start|date:"M j" }} – {{ week_end|date:"M j" }}
+      · <a href="{% url 'kondate:week_of' week_start|date:'Y-m-d' %}">see plan</a>
+      · <span id="remaining">{{ shopping.remaining }}</span> left</p>
+  </div>
+  <div class="weeknav">
+    <a class="btn" href="{% url 'kondate:shopping_week' prev_week|date:'Y-m-d' %}" aria-label="Previous week">‹</a>
+    {% if week_start != this_week %}<a class="btn" href="{% url 'kondate:shopping' %}">This week</a>{% endif %}
+    <a class="btn" href="{% url 'kondate:shopping_week' next_week|date:'Y-m-d' %}" aria-label="Next week">›</a>
+  </div>
+</div>
+
+{% if not shopping.sections and not shopping.staples %}
+  <p class="card muted">Nothing to buy yet — <a href="{% url 'kondate:week_of' week_start|date:'Y-m-d' %}">plan some meals</a> for this week.</p>
+{% endif %}
+
+{% for section in shopping.sections %}
+<section class="shopsection">
+  <h2>{{ section.label }}</h2>
+  <ul class="checklist card">
+    {% for line in section.lines %}{% include 'kondate/_shopping_line.html' %}{% endfor %}
+  </ul>
+</section>
+{% endfor %}
+
+{% if shopping.staples %}
+<details class="shopsection staples">
+  <summary><h2>Probably have <span class="muted small">({{ shopping.staples|length }} staples — check the pantry)</span></h2></summary>
+  <ul class="checklist card">
+    {% for line in shopping.staples %}{% include 'kondate/_shopping_line.html' %}{% endfor %}
+  </ul>
+</details>
+{% endif %}
+
+<section class="shopsection" id="extras">
+  <h2>Extras</h2>
+  <ul class="checklist card">
+    {% for extra in extras %}
+    <li class="{% if extra.checked %}done{% endif %}">
+      <form method="post" action="{% url 'kondate:shopping_extra_check' extra.pk %}" class="check">
+        {% csrf_token %}
+        <input type="hidden" name="checked" value="{% if extra.checked %}0{% else %}1{% endif %}">
+        <button type="submit" class="tick" role="checkbox" aria-checked="{% if extra.checked %}true{% else %}false{% endif %}">
+          <span class="box"></span><span class="what">{{ extra.name }}</span>
+        </button>
+      </form>
+      <form method="post" action="{% url 'kondate:shopping_extra_delete' extra.pk %}" class="inline">
+        {% csrf_token %}<button class="linklike muted" type="submit" aria-label="Delete {{ extra.name }}">✕</button>
+      </form>
+    </li>
+    {% endfor %}
+    <li>
+      <form method="post" action="{% url 'kondate:shopping_extra_add' week_start|date:'Y-m-d' %}" class="addextra">
+        {% csrf_token %}{{ extra_form.name }}<button class="btn" type="submit">Add</button>
+      </form>
+    </li>
+  </ul>
+</section>
+
+<form method="post" action="{% url 'kondate:shopping_reset' week_start|date:'Y-m-d' %}" class="center">
+  {% csrf_token %}<button class="linklike muted" type="submit">Uncheck everything</button>
+</form>
+{% endblock %}
+
+{% block script %}
+<script>
+  // Progressive enhancement: tick items without a page reload.
+  // Without JS each tick is a normal form POST + redirect.
+  document.addEventListener("submit", function (event) {
+    var form = event.target;
+    if (!form.classList.contains("check")) return;
+    event.preventDefault();
+    var input = form.querySelector("input[name=checked]");
+    var button = form.querySelector("button");
+    var li = form.closest("li");
+    fetch(form.action, {
+      method: "POST",
+      body: new FormData(form),
+      headers: { "Accept": "application/json" },
+      credentials: "same-origin"
+    }).then(function (r) {
+      if (!r.ok) throw new Error(r.status);
+      return r.json();
+    }).then(function (data) {
+      li.classList.toggle("done", data.checked);
+      button.setAttribute("aria-checked", String(data.checked));
+      input.value = data.checked ? "0" : "1";
+      var left = document.querySelectorAll(".shopsection:not(.staples):not(#extras) li:not(.done)").length;
+      document.getElementById("remaining").textContent = left;
+    }).catch(function () { form.submit(); });
+  });
+</script>
+{% endblock %}

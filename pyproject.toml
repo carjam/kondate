@@ -1,0 +1,11 @@
+[project]
+name = "kondate"
+version = "1.0.0"
+description = "Weekly meal planner and shopping list"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "mysite.settings"
+python_files = ["test_*.py"]
+addopts = "-q"
+filterwarnings = ["error::RuntimeWarning", "ignore:No directory at:UserWarning"]

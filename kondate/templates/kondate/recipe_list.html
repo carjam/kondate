@@ -1,0 +1,29 @@
+{% extends 'kondate/base.html' %}
+{% block title %}Recipes{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <h1>Recipes</h1>
+  <a class="btn primary" href="{% url 'kondate:recipe_new' %}">New recipe</a>
+</div>
+<form method="get" class="searchbar">
+  <input type="search" name="q" value="{{ q }}" placeholder="Search recipes or ingredients" aria-label="Search">
+  <select name="sort" aria-label="Sort" onchange="this.form.submit()">
+    <option value="name" {% if sort == 'name' %}selected{% endif %}>A–Z</option>
+    <option value="stale" {% if sort == 'stale' %}selected{% endif %}>Not had in a while</option>
+  </select>
+  <button class="btn" type="submit">Search</button>
+</form>
+<ul class="list card">
+  {% for recipe in recipes %}
+  <li>
+    <a href="{{ recipe.get_absolute_url }}">{{ recipe.name }}</a>
+    <span class="muted small">
+      {{ recipe.item_count }} ingredient{{ recipe.item_count|pluralize }}
+      · {% if recipe.last_planned %}last planned {{ recipe.last_planned|date:"M j, Y" }}{% else %}never planned{% endif %}
+    </span>
+  </li>
+  {% empty %}
+  <li class="muted">No recipes match{% if q %} “{{ q }}”{% endif %}.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

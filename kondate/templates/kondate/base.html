@@ -1,35 +1,36 @@
-
-{% load static %}
-
-<!doctype html>
+{% load static %}<!doctype html>
 <html lang="en">
-
 <head>
-  <!-- Required meta tags -->
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <!-- Bootstrap CSS -->
-  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
-  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.0.10/css/all.css">
-  <link rel="stylesheet" type="text/css" href="{% static 'kondate/css/styles.css' %}">
-  <title>Kondate App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>{% block title %}Kondate{% endblock %} · 献立</title>
+  <link rel="stylesheet" href="{% static 'kondate/css/styles.css' %}">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍱</text></svg>">
 </head>
 <body>
+  <header class="topbar">
+    <a class="brand" href="{% url 'kondate:week' %}"><span class="kanji">献立</span> kondate</a>
+    {% if user.is_authenticated %}
+    <nav class="nav">
+      {% with name=request.resolver_match.url_name %}
+      <a href="{% url 'kondate:week' %}" {% if name == 'week' or name == 'week_of' %}aria-current="page"{% endif %}>Week</a>
+      <a href="{% url 'kondate:shopping' %}" {% if name == 'shopping' or name == 'shopping_week' %}aria-current="page"{% endif %}>Shopping</a>
+      <a href="{% url 'kondate:recipe_list' %}" {% if name|slice:":6" == 'recipe' %}aria-current="page"{% endif %}>Recipes</a>
+      <a href="{% url 'kondate:ingredient_list' %}" {% if name == 'ingredient_list' %}aria-current="page"{% endif %}>Ingredients</a>
+      {% endwith %}
+      <form method="post" action="{% url 'logout' %}" class="inline">{% csrf_token %}<button class="linklike" type="submit">Sign out</button></form>
+    </nav>
+    {% endif %}
+  </header>
 
-  {% block content %}
-  {% endblock %}
+  <main class="page">
+    {% for message in messages %}
+      <div class="flash flash-{{ message.tags }}" role="status">{{ message }}</div>
+    {% endfor %}
+    {% block content %}{% endblock %}
+  </main>
 
-  <!-- Optional JavaScript -->
-  <!-- jQuery first, then Popper.js, then Bootstrap JS -->
-  <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN"
-    crossorigin="anonymous"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q"
-    crossorigin="anonymous"></script>
-  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl"
-    crossorigin="anonymous"></script>
-
-  {% block script %}
-  {% endblock %}
+  {% block script %}{% endblock %}
 </body>
 </html>
-

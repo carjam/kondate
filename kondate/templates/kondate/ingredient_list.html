@@ -1,0 +1,29 @@
+{% extends 'kondate/base.html' %}
+{% block title %}Ingredients{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <div>
+    <h1>Ingredients</h1>
+    <p class="muted">Store section sets the order on the shopping list. Staples are listed separately as “probably have”.</p>
+  </div>
+</div>
+<form method="post" class="card">
+  {% csrf_token %}
+  {{ formset.management_form }}
+  <table class="table">
+    <thead><tr><th>Ingredient</th><th>Store section</th><th>Staple</th></tr></thead>
+    <tbody>
+    {% for form in formset %}
+      {% ifchanged form.instance.category %}<tr class="group"><th colspan="3">{{ form.instance.get_category_display }}</th></tr>{% endifchanged %}
+      <tr>
+        <td>{{ form.id }}{{ form.instance.name }} <span class="muted small">{{ form.instance.recipe_count }} recipe{{ form.instance.recipe_count|pluralize }}</span></td>
+        <td>{{ form.category }}</td>
+        <td>{{ form.is_staple }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <div class="actions sticky"><button class="btn primary" type="submit">Save changes</button>
+    <a class="muted small" href="{% url 'admin:kondate_ingredient_changelist' %}">Rename or delete in admin</a></div>
+</form>
+{% endblock %}

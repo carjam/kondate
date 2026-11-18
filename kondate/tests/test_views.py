@@ -50,6 +50,26 @@ def test_login_page_renders(client):
     assert client.get(reverse("login")).status_code == 200
 
 
+def _sign_in(client, password):
+    return client.post(reverse("login"), {"username": "cook", "password": password})
+
+
+def test_login_locks_after_repeated_failures(client, user, settings):
+    for _ in range(settings.AXES_FAILURE_LIMIT):
+        _sign_in(client, "wrong")
+    response = _sign_in(client, "pw-for-tests-only")  # even the right password
+    assert response.status_code == 429
+    assert "Sign-in paused" in response.content.decode()
+
+
+def test_successful_login_resets_the_failure_count(client, user, settings):
+    for _ in range(settings.AXES_FAILURE_LIMIT - 1):
+        _sign_in(client, "wrong")
+    assert _sign_in(client, "pw-for-tests-only").status_code == 302
+    client.logout()
+    assert _sign_in(client, "wrong").status_code == 200  # back to one failure, not locked
+
+
 # --- week planner ----------------------------------------------------------
 
 def test_week_page_shows_planned_meals(client_in, make_recipe, plan):

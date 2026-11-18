@@ -100,6 +100,12 @@ Never run the test suite with a production `DATABASE_URL` exported.
 
 *Render → kondate → Logs.* The app logs to stdout at INFO. Set `LOG_LEVEL=DEBUG` temporarily for more detail.
 
+### Security
+
+- **Every page requires sign-in** (`LoginRequiredMiddleware`); only `/healthz` is public.
+- **Sign-in rate limiting** (django-axes): 10 wrong passwords for a username pause sign-in for that username for an hour, on both the app's sign-in and the admin's. A successful sign-in resets the count. To unlock early, delete the username's entries under *Admin → Axes → Access attempts*. Lockouts are by username only, because behind Render's proxy the client IP can't be trusted (see `mysite/settings.py`).
+- **Content-Security-Policy** on every response (`mysite/middleware.py`): scripts, styles and requests from this origin only, no inline script or style. A test fails if a template adds an inline one.
+
 ### Settings (env vars)
 
 | Variable | Default | Purpose |
@@ -112,18 +118,21 @@ Never run the test suite with a production `DATABASE_URL` exported.
 | `TIME_ZONE` | `America/Los_Angeles` | Decides what "today" and "this week" mean |
 | `KONDATE_WEEK_START` | `0` (Monday) | `6` = Sunday-start weeks |
 | `LOG_LEVEL` | `INFO` | Root log level (stdout) |
+| `CSP_REPORT_ONLY` | off | Report CSP violations in the browser console instead of blocking them |
 
 ## Layout
 
 ```
 kondate/
   models.py      Ingredient, Recipe, RecipeIngredient, Meal, ShoppingCheck, ShoppingExtra
-  planning.py    week arithmetic + shopping-list aggregation (fixed query count)
+  planning.py    week arithmetic + shopping-list aggregation (fixed query count) + plain-text export
+  quantities.py  adding up free-text amounts ("1/2 cup" + "1 1/2 cups" = "2 cups")
   views.py       function views; all POSTs for writes
-  seed/          original recipe data
+  seed/          recipe data loaded by data migrations
+  static/kondate/  styles.css and app.js (progressive enhancement, no build step)
   management/commands/ensure_superuser.py
   tests/         pytest-django suite (CI runs it on Postgres)
-mysite/          settings, urls, wsgi
+mysite/          settings, urls, wsgi, CSP middleware
 render.yaml      Render blueprint
 ```
 

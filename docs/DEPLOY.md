@@ -1,19 +1,8 @@
 # Deploying kondate: Render + Supabase
 
-A step-by-step runbook for getting kondate online. Expect it to take about 30 minutes the first time.
+A step-by-step guide to running your own copy of kondate on free tiers: a Render web service and a Supabase Postgres database. Expect it to take about 30 minutes the first time. The second half covers day-to-day operation, the settings reference and troubleshooting.
 
 > Render and Supabase change their dashboards and free-tier terms from time to time. If a menu name below doesn't match, look for the nearest equivalent, and check current plan limits before relying on them.
-
-## Where things stand (as of 2026-11-17)
-
-| Item | Status |
-|---|---|
-| Code | Merged to `master` (PR #1) |
-| CI | Passing on `master`: migration check, `check --deploy`, the test suite on Postgres 17 |
-| Supabase project | Created: `kondate`, West US (Oregon), Data API off, automatic RLS on |
-| Render service | Live at https://kondate-xxxx.onrender.com, auto-deploys from `master` |
-
-Everything below is done. Use it to rebuild the deployment from scratch, or as a reference for how it's set up. The day-to-day developer notes are in the README's *Production* section.
 
 ## How it fits together
 
@@ -24,7 +13,7 @@ phone / laptop ──HTTPS──▶ Render web service (free)          Supabase 
 ```
 
 - Render builds from `render.yaml` on every push to `master`.
-- Each boot runs `migrate`, which creates the tables. On a fresh database it also loads the 33 seed recipes. The boot then runs `ensure_superuser` and starts gunicorn.
+- Each boot runs `migrate`, which creates the tables. On a fresh database it also loads the 45 seed recipes. The boot then runs `ensure_superuser` and starts gunicorn.
 - No Supabase features are used except plain Postgres: no Supabase Auth and no client libraries.
 
 ---
@@ -104,14 +93,14 @@ The password is under **Database → Settings** (`https://supabase.com/dashboard
 ## 2. Render: create the web service
 
 1. Go to https://dashboard.render.com and sign in with GitHub.
-2. Choose **New → Blueprint**, select `carjam/kondate`, and use branch `master`. If you enter a Blueprint name, use `kondate`. Render reads `render.yaml` and proposes one web service, **kondate** (free plan, Oregon).
+2. Choose **New → Blueprint**, select your fork of `kondate`, and use branch `master`. If you enter a Blueprint name, use `kondate`. Render reads `render.yaml` and proposes one web service, **kondate** (free plan, Oregon).
    - **Repo not listed?** Render's GitHub app only sees the repos you've granted it. Go to https://github.com/settings/installations → **Render** → **Configure** → *Repository access*, add `kondate` (*Only select repositories* keeps access narrow), click **Save**, then refresh the Render page.
 3. Render prompts for the variables marked `sync: false`:
 
    | Variable | Value |
    |---|---|
    | `DATABASE_URL` | The full Session pooler URI from step 1b, including `?sslmode=require` |
-   | `DJANGO_SUPERUSER_USERNAME` | Your login name, e.g. `james` |
+   | `DJANGO_SUPERUSER_USERNAME` | Your login name. Avoid one that's easy to guess: sign-in lockouts are per username (see *Security*). |
    | `DJANGO_SUPERUSER_PASSWORD` | A strong password, which becomes your login password |
 
    These are set for you:
@@ -121,13 +110,13 @@ The password is under **Database → Settings** (`https://supabase.com/dashboard
    - **Build:** `pip install` + `collectstatic` (about 1–2 minutes).
    - **Start:** `migrate` creates the tables and loads the seed recipes, `ensure_superuser` prints `created '<you>'`, then gunicorn starts.
    - The health check on `/healthz` turns green, and the service shows **Live**.
-5. Note the URL. The current deployment is `https://kondate-xxxx.onrender.com`; Render adds a random suffix to the service name. The app trusts this hostname automatically through `RENDER_EXTERNAL_HOSTNAME`, so no host settings are needed.
+5. Note the URL, `https://kondate-xxxx.onrender.com`; Render adds a random suffix to the service name. The app trusts this hostname automatically through `RENDER_EXTERNAL_HOSTNAME`, so no host settings are needed.
 
 ## 3. Verify
 
 1. Open `https://<your-app>.onrender.com/healthz`. It should return `ok`.
 2. Open the root URL. It should redirect to the sign-in page; log in with the superuser credentials.
-3. Check that **Recipes** lists 33 recipes and **Ingredients** shows store sections.
+3. Check that **Recipes** lists 45 recipes and **Ingredients** shows store sections.
 4. Plan a couple of meals, open **Shopping**, and tick an item.
 5. In Supabase, **Table Editor** should now show the `kondate_*` tables.
 
@@ -171,6 +160,72 @@ Keep backups out of git. They contain password hashes.
    - `DJANGO_CSRF_TRUSTED_ORIGINS=https://kondate.example.com`
 3. Redeploy. The `onrender.com` URL keeps working.
 
+## 7. Operating it
+
+### How a deploy happens
+
+- **Every push to `master` deploys automatically.** Render builds from `render.yaml`. Merging a PR is shipping it, so keep `master` green (CI runs the tests on Postgres).
+- **Build:** `pip install -r requirements.txt` + `collectstatic`.
+- **Boot:** `migrate --noinput` → `ensure_superuser` → gunicorn. The free plan has no pre-deploy hook and no shell, so migrations run at boot.
+- **Health check:** `/healthz` returns `ok` without touching the database.
+
+### When you change code
+
+- **Migrations run against live data on the next deploy.** If one fails, the boot fails and Render keeps the previous version running. Test new migrations on a copy of real data first (see *Backups* in section 5). Keep them backward compatible, because the old code is still serving requests while the new instance starts.
+- **No shell on the free plan.** One-off fixes go in a data migration or a management command run from your machine (below), not a console session.
+- **Changing dependencies:** edit `requirements.txt`, which is what Render installs. Python is pinned by `PYTHON_VERSION` in `render.yaml`.
+- **Static files:** whitenoise serves them, and they're collected at build time. Reference them with `{% static %}`.
+- **Don't add Supabase client libraries, Supabase Auth or Supabase's GitHub schema sync.** Supabase is used only as plain Postgres. Django owns the schema through its migrations.
+
+### Running commands against production from your machine
+
+Read the URI without echoing it, so it stays out of your shell history:
+
+```bash
+read -rsp 'DATABASE_URL: ' DATABASE_URL && echo && export DATABASE_URL
+DJANGO_DEBUG=1 .venv/bin/python manage.py showmigrations   # or dumpdata, etc.
+unset DATABASE_URL                                         # don't leave the shell pointed at prod
+```
+
+Never run the test suite with a production `DATABASE_URL` exported.
+
+## Reference
+
+### Render environment
+
+| Variable | Source |
+|---|---|
+| `DATABASE_URL` | Set by hand in the dashboard: the Supabase Session pooler URI |
+| `DJANGO_SECRET_KEY` | Generated by Render. Changing it logs everyone out. |
+| `DJANGO_SUPERUSER_USERNAME` | Set by hand. Used only to create the first account. |
+| `DJANGO_SUPERUSER_PASSWORD` | Set by hand for the first boot only, then delete it. `ensure_superuser` never changes an existing password, so manage users in `/admin/`. |
+| `PYTHON_VERSION`, `TIME_ZONE`, `KONDATE_WEEK_START` | `render.yaml` |
+| `RENDER_EXTERNAL_HOSTNAME` | Set by Render. Added to `ALLOWED_HOSTS` and CSRF trusted origins automatically. |
+
+Secrets never go in the repo. `render.yaml` marks them `sync: false`, and their values live only in the Render dashboard.
+
+### All settings (env vars)
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `DJANGO_SECRET_KEY` | — (required unless debug) | Signing key |
+| `DJANGO_DEBUG` | off | Local development only |
+| `DATABASE_URL` | `sqlite:///db.sqlite3` | Database |
+| `DJANGO_ALLOWED_HOSTS` | Render hostname | Comma-separated extra hosts, e.g. a custom domain |
+| `DJANGO_CSRF_TRUSTED_ORIGINS` | Render URL | Comma-separated, with scheme |
+| `TIME_ZONE` | `America/Los_Angeles` | Decides what "today" and "this week" mean |
+| `KONDATE_WEEK_START` | `0` (Monday) | `6` = Sunday-start weeks |
+| `DJANGO_SECURE_SSL_REDIRECT` | on (production) | Redirect HTTP to HTTPS; `/healthz` is exempt |
+| `DJANGO_HSTS_SECONDS` | `2592000` (30 days) | HSTS max-age in production |
+| `LOG_LEVEL` | `INFO` | Root log level (stdout) |
+| `CSP_REPORT_ONLY` | off | Report CSP violations in the browser console instead of blocking them |
+
+### Security
+
+- **Every page requires sign-in** (`LoginRequiredMiddleware`); only `/healthz` is public.
+- **Sign-in rate limiting** (django-axes): 10 wrong passwords for a username pause sign-in for that username for an hour, on both the app's sign-in and the admin's. A successful sign-in resets the count. To unlock early, delete the username's entries under *Admin → Axes → Access attempts*. Lockouts are by username only, because behind Render's proxy the client IP can't be trusted (see `mysite/settings.py`). The trade-off is that anyone who knows a username can lock that account for an hour, so pick usernames that don't appear anywhere public.
+- **Content-Security-Policy** on every response (`mysite/middleware.py`): scripts, styles and requests from this origin only, no inline script or style. A test fails if a template adds an inline one.
+
 ## Troubleshooting
 
 | Symptom | Likely cause and fix |
@@ -188,8 +243,3 @@ Keep backups out of git. They contain password hashes.
 | Can't log in and no user exists | `DJANGO_SUPERUSER_USERNAME`/`_PASSWORD` weren't set on first boot. Set them and redeploy (*Manual Deploy → Deploy latest commit*). |
 
 Logs are under *Render → Service → Logs*. The app logs to stdout at INFO; set `LOG_LEVEL=DEBUG` temporarily for more detail.
-
-## Housekeeping (one-time)
-
-- **Old MySQL password:** the original `mysite/settings.py` committed a MySQL password, and it's still in git history. If that password is used anywhere else, change it there.
-- **Old local `db.sqlite3`:** no longer tracked by git. It still works for local development, since it migrates cleanly to the new schema.

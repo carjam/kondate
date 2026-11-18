@@ -2,7 +2,7 @@
 
 Everything environment-specific comes from env vars so the same file runs
 locally (SQLite, DEBUG on) and on Render (Postgres via DATABASE_URL, DEBUG off).
-See README.md for the full list.
+See docs/DEPLOY.md (Reference) for the full list.
 """
 
 import os

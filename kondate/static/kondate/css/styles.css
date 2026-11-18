@@ -204,6 +204,14 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
 .searchfield { position: relative; display: block; flex: 1 1 260px; }
 .searchfield svg { position: absolute; left: .8rem; top: 50%; transform: translateY(-50%); color: var(--faint); width: 18px; height: 18px; pointer-events: none; }
 .searchfield input { padding-left: 2.4rem; border-radius: 999px; }
+/* The browser's own clear button is a blue ×; draw it in the theme's colors (a data: mask, allowed by the CSP). */
+input[type=search]::-webkit-search-cancel-button {
+  -webkit-appearance: none; appearance: none; width: 1rem; height: 1rem; margin-left: .4rem; cursor: pointer;
+  background-color: var(--faint);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+input[type=search]::-webkit-search-cancel-button:hover { background-color: var(--text); }
 
 /* Segmented control built from radios. */
 /* One row that scrolls sideways when it doesn't fit (five meal slots on a phone). */
@@ -292,7 +300,7 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
 .day.is-past { background: transparent; box-shadow: none; }
 .day.is-past .mealname, .day.is-past .dom { color: var(--muted); }
 
-.meals { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; }
+.meals { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: .4rem; }
 .meals:empty { display: none; }
 .meal {
   position: relative; display: flex; align-items: stretch;
@@ -303,6 +311,7 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
 .meal > a:hover .mealname { color: var(--accent); }
 .mealname { font-weight: 600; line-height: 1.3; overflow-wrap: break-word; hyphens: auto; }
 .mealnote { font-size: .8rem; color: var(--muted); }
+.mealorig { font-size: .75rem; line-height: 1.35; color: var(--muted); overflow-wrap: anywhere; }
 .slotlabel { font-size: .65rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .meal.slot-1 { border-left-color: var(--slot-1); } .meal.slot-1 .slotlabel { color: var(--slot-1); }
 .meal.slot-2 { border-left-color: var(--slot-2); } .meal.slot-2 .slotlabel { color: var(--slot-2); }
@@ -310,11 +319,13 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
 .meal.slot-5 { border-left-color: var(--slot-5); } .meal.slot-5 .slotlabel { color: var(--slot-5); }
 .meal.is-note { background: transparent; border: 1px dashed var(--line-strong); border-left-width: 3px; }
 .meal.is-note .mealname { font-weight: 500; font-style: italic; }
-.mealremove { display: flex; }
+/* Overlaid on the chip's right edge, so the hidden button doesn't narrow the name. */
+.mealremove { position: absolute; inset: 0 0 0 auto; display: flex; }
 .mealremove button {
-  width: 32px; border: 0; background: none; color: var(--faint); cursor: pointer; border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  width: 32px; border: 0; background: var(--surface-2); color: var(--faint); cursor: pointer; border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   display: grid; place-items: center; opacity: 0; transition: opacity .15s;
 }
+.meal.is-note .mealremove button { background: var(--surface); }
 .mealremove button svg { width: 14px; height: 14px; }
 .mealremove button:hover { color: var(--danger); }
 .meal:hover .mealremove button, .mealremove button:focus-visible { opacity: 1; }
@@ -338,6 +349,7 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
   .today-tag { margin: 0 0 0 auto; }
   .addmeal { margin-top: auto; align-self: stretch; justify-content: center; padding: .45rem; }
   .meals + .addmeal { margin-top: auto; }
+  .meals { align-self: stretch; }
   .meals:not(:empty) { margin-bottom: .6rem; }
 }
 

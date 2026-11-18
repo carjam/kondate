@@ -43,7 +43,10 @@
       <li class="meal slot-{{ meal.slot }}{% if not meal.recipe %} is-note{% endif %}">
         <a href="{% url 'kondate:meal_edit' meal.pk %}">
           {% if meal.slot != default_slot %}<span class="slotlabel">{{ meal.get_slot_display }}</span>{% endif %}
-          <span class="mealname">{{ meal.title|capfirst }}</span>
+          {% with parts=meal.title_parts %}
+          <span class="mealname">{{ parts.0|capfirst }}</span>
+          {% if parts.1 %}<span class="mealorig" lang="ja">{{ parts.1 }}</span>{% endif %}
+          {% endwith %}
           {% if meal.recipe and meal.note %}<span class="mealnote">{{ meal.note }}</span>{% endif %}
         </a>
         <form method="post" action="{% url 'kondate:meal_delete' meal.pk %}" class="mealremove">

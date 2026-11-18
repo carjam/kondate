@@ -67,10 +67,22 @@ def backwards(apps, schema_editor):
     Recipe = apps.get_model("kondate", "Recipe")
     RecipeIngredient = apps.get_model("kondate", "RecipeIngredient")
     data = _load()
-    for entry in data["add"]:
-        Recipe.objects.filter(name__iexact=entry["name"], meals__isnull=True).delete()
+    added = [
+        pk
+        for entry in data["add"]
+        for pk in Recipe.objects.filter(name__iexact=entry["name"], meals__isnull=True).values_list("pk", flat=True)
+    ]
+    # Plain filtered deletes, not Recipe.delete(): when this runs in the same
+    # rollback as later migrations, the cascade collector can be handed model
+    # classes from two different migration states and refuses to compare them
+    # ("Cannot query 'Recipe object': Must be 'Recipe' instance").
+    RecipeIngredient.objects.filter(recipe_id__in=added).delete()
     for entry in data["fill"]:
         RecipeIngredient.objects.filter(recipe__name__iexact=entry["name"]).delete()
+    if added:
+        table = schema_editor.quote_name(Recipe._meta.db_table)
+        placeholders = ", ".join(["%s"] * len(added))
+        schema_editor.execute(f"DELETE FROM {table} WHERE id IN ({placeholders})", added)  # noqa: S608
 
 
 class Migration(migrations.Migration):

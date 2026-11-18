@@ -32,6 +32,11 @@ jobs:
         run: echo "DJANGO_SECRET_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(50))')" >> "$GITHUB_ENV"
       - name: Migrations match models
         run: python manage.py makemigrations --check --dry-run
+      - name: Migrations apply, roll back and re-apply (Postgres)
+        run: |
+          python manage.py migrate --noinput
+          python manage.py migrate kondate 0002 --noinput
+          python manage.py migrate --noinput
       - name: Deploy checks
         run: python manage.py check --deploy --fail-level WARNING
       - name: Tests (Postgres)

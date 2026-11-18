@@ -4,18 +4,14 @@
 <div class="pagehead">
   <div>
     <p class="eyebrow">{% if week_start == this_week %}This week{% elif week_start > this_week %}Coming up{% else %}Past week{% endif %}</p>
-    <h1>{{ week_start|date:"M j" }} – {% if week_start.month == week_end.month %}{{ week_end|date:"j" }}{% else %}{{ week_end|date:"M j" }}{% endif %}</h1>
+    <h1>{{ week_label }}</h1>
     <p class="muted">
       {% if planned_count %}{{ dinner_count }} dinner{{ dinner_count|pluralize }} planned{% if other_count %} · {{ other_count }} other meal{{ other_count|pluralize }}{% endif %}
       {% else %}Nothing planned yet{% endif %}
     </p>
   </div>
   <div class="headactions">
-    <nav class="weeknav" aria-label="Weeks">
-      <a class="iconbtn" href="{% url 'kondate:week_of' prev_week|date:'Y-m-d' %}" aria-label="Previous week"><svg><use href="#i-left"/></svg></a>
-      <a class="pill{% if week_start == this_week %} is-current{% endif %}" href="{% url 'kondate:week' %}">Today</a>
-      <a class="iconbtn" href="{% url 'kondate:week_of' next_week|date:'Y-m-d' %}" aria-label="Next week"><svg><use href="#i-right"/></svg></a>
-    </nav>
+    {% include 'kondate/_weeknav.html' with url_name='kondate:week_of' %}
     <a class="btn primary" href="{% url 'kondate:shopping_week' week_start|date:'Y-m-d' %}">
       <svg aria-hidden="true"><use href="#i-basket"/></svg>Shopping list</a>
   </div>
@@ -112,7 +108,7 @@
         <h3 class="eyebrow" data-all-label>All recipes</h3>
         <ul>
           {% for recipe in recipes %}
-          <li data-search="{{ recipe.name|lower }} {% for i in recipe.ingredients.all %}{{ i.name|lower }} {% endfor %}">
+          <li data-search="{{ recipe.search_text }}">
             <button type="submit" name="recipe" value="{{ recipe.pk }}" class="pick" formnovalidate>
               <span>{{ recipe.name|capfirst }}</span>
               <small>{% if recipe.last_planned %}{{ recipe.last_planned|date:"M j" }}{% endif %}</small>

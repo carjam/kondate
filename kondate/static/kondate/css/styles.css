@@ -447,14 +447,13 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
 .addextra { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .75rem; width: 100%; }
 .addextra input[type=text] { flex: 1 1 200px; border-radius: 999px; }
 
-.pantry summary { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 .6rem; cursor: pointer; list-style: none; }
-.pantry summary::-webkit-details-marker { display: none; }
+.pantry summary, .regulars summary { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 .6rem; cursor: pointer; list-style: none; }
+.pantry summary::-webkit-details-marker, .regulars summary::-webkit-details-marker { display: none; }
+.regulars summary { justify-content: space-between; }
 .pantry summary::before { content: "▸"; color: var(--muted); transition: transform .15s; display: inline-block; }
 .pantry[open] summary::before { transform: rotate(90deg); }
 .pantry .sectionlabel { display: inline; }
 
-.regulars summary { display: flex; align-items: baseline; justify-content: space-between; cursor: pointer; list-style: none; }
-.regulars summary::-webkit-details-marker { display: none; }
 .plainlist { list-style: none; margin: .6rem 0; padding: 0; }
 .plainlist li { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; padding: .4rem 0; border-top: 1px solid var(--line); }
 

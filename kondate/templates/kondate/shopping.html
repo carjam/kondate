@@ -5,17 +5,13 @@
 <div class="pagehead">
   <div>
     <p class="eyebrow">Shopping list</p>
-    <h1>{{ week_start|date:"M j" }} – {% if week_start.month == week_end.month %}{{ week_end|date:"j" }}{% else %}{{ week_end|date:"M j" }}{% endif %}</h1>
+    <h1>{{ week_label }}</h1>
     <p class="muted">
       {% with n=shopping.meals|length %}For {{ n }} planned meal{{ n|pluralize }}{% endwith %}
       · <a href="{% url 'kondate:week_of' week_start|date:'Y-m-d' %}">see plan</a>
     </p>
   </div>
-  <nav class="weeknav" aria-label="Weeks">
-    <a class="iconbtn" href="{% url 'kondate:shopping_week' prev_week|date:'Y-m-d' %}" aria-label="Previous week"><svg><use href="#i-left"/></svg></a>
-    <a class="pill{% if week_start == this_week %} is-current{% endif %}" href="{% url 'kondate:shopping' %}">This week</a>
-    <a class="iconbtn" href="{% url 'kondate:shopping_week' next_week|date:'Y-m-d' %}" aria-label="Next week"><svg><use href="#i-right"/></svg></a>
-  </nav>
+  {% include 'kondate/_weeknav.html' with url_name='kondate:shopping_week' %}
 </div>
 
 <div class="shopgrid">
@@ -105,7 +101,7 @@
       </div>
       <details class="plaintext">
         <summary class="small">Show as text</summary>
-        <textarea readonly rows="12" data-text data-src="{% url 'kondate:shopping_text' week_start|date:'Y-m-d' %}" aria-label="Shopping list as text">{{ shopping_text }}</textarea>
+        <textarea readonly rows="12" data-text aria-label="Shopping list as text">{{ shopping_text }}</textarea>
       </details>
     </section>
 

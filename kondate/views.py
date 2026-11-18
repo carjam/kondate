@@ -3,12 +3,13 @@ import datetime as dt
 from django.contrib import messages
 from django.contrib.auth.decorators import login_not_required
 from django.db import transaction
-from django.db.models import Count, F, Max, Prefetch, ProtectedError, Q
+from django.db.models import Count, F, ProtectedError, Q
 from django.db.models.functions import Lower
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.text import capfirst
 from django.views.decorators.http import require_safe, require_POST
 
 from .forms import (
@@ -22,6 +23,7 @@ from .models import Ingredient, Meal, Recipe, RecipeIngredient, ShoppingCheck, S
 from .planning import (
     build_shopping_list,
     current_week_start,
+    day_range,
     meals_in_week,
     shopping_list_text,
     week_days,
@@ -47,9 +49,11 @@ def _to_shopping(start: dt.date, anchor: str = ""):
 
 
 def _week_nav(start: dt.date) -> dict:
+    end = start + dt.timedelta(days=6)
     return {
         "week_start": start,
-        "week_end": start + dt.timedelta(days=6),
+        "week_end": end,
+        "week_label": day_range(start, end),
         "prev_week": start - dt.timedelta(days=7),
         "next_week": start + dt.timedelta(days=7),
         "this_week": current_week_start(),
@@ -72,11 +76,7 @@ def healthz(request):
 def _picker_recipes(exclude_ids: set[int]) -> tuple[list[Recipe], list[Recipe]]:
     """All recipes for the quick-plan sheet, plus a few "haven't had in a while"
     suggestions: longest-ago first, then never-planned, skipping this week's."""
-    recipes = list(
-        Recipe.objects.annotate(last_planned=Max("meals__date"))
-        .prefetch_related(Prefetch("ingredients", queryset=Ingredient.objects.only("name")))
-        .order_by(Lower("name"))
-    )
+    recipes = list(Recipe.objects.for_browsing().order_by(Lower("name")))
     candidates = [r for r in recipes if r.pk not in exclude_ids]
     candidates.sort(key=lambda r: (r.last_planned is None, r.last_planned or dt.date.min))
     return recipes, candidates[:5]
@@ -121,7 +121,12 @@ def meal_edit(request, pk: int | None = None):
             if recipe_id := request.GET.get("recipe"):
                 initial["recipe"] = recipe_id
         form = MealForm(instance=meal, initial=initial)
-    return render(request, "kondate/meal_form.html", {"form": form, "meal": meal})
+    back_url = (
+        reverse("kondate:week_of", args=[week_start_for(meal.date).isoformat()])
+        if meal
+        else reverse("kondate:week")
+    )
+    return render(request, "kondate/meal_form.html", {"form": form, "meal": meal, "back_url": back_url})
 
 
 @require_POST
@@ -160,10 +165,7 @@ def week_copy_previous(request, day: str):
 def recipe_list(request):
     q = request.GET.get("q", "").strip()
     sort = request.GET.get("sort", "name")
-    recipes = Recipe.objects.annotate(
-        item_count=Count("items", distinct=True),
-        last_planned=Max("meals__date"),
-    ).prefetch_related(Prefetch("ingredients", queryset=Ingredient.objects.only("name")))
+    recipes = Recipe.objects.for_browsing().annotate(item_count=Count("items", distinct=True))
     if q:
         recipes = recipes.filter(
             Q(name__icontains=q) | Q(notes__icontains=q) | Q(items__ingredient__name__icontains=q)
@@ -221,6 +223,8 @@ def recipe_edit(request, pk: int | None = None):
         "formset": formset,
         "recipe": recipe,
         "ingredient_names": Ingredient.objects.values_list("name", flat=True),
+        "back_url": recipe.get_absolute_url() if recipe else reverse("kondate:recipe_list"),
+        "back_label": capfirst(recipe.name) if recipe else "Recipes",
     }
     return render(request, "kondate/recipe_form.html", context)
 
@@ -278,16 +282,12 @@ def shopping(request, day: str | None = None):
     return render(request, "kondate/shopping.html", context)
 
 
-@require_safe
-def shopping_text(request, day: str):
-    """The copy/paste version of the list (refetched by the page after each tick)."""
-    start = _week_of(day)
-    return HttpResponse(shopping_list_text(build_shopping_list(start)), content_type="text/plain; charset=utf-8")
-
-
-def _back_to_list(request, start: dt.date, payload: dict):
+def _back_to_list(request, start: dt.date, checked: bool):
+    """JSON for the page's fetch (with the refreshed copy-paste text, so it
+    needs no second request), or a redirect for a plain form post."""
     if _wants_json(request):
-        return JsonResponse(payload)
+        text = shopping_list_text(build_shopping_list(start))
+        return JsonResponse({"checked": checked, "text": text})
     return _to_shopping(start)
 
 
@@ -301,7 +301,7 @@ def shopping_check(request, day: str, ingredient_id: int):
         ShoppingCheck.objects.get_or_create(week_start=start, ingredient=ingredient)
     else:
         ShoppingCheck.objects.filter(week_start=start, ingredient=ingredient).delete()
-    return _back_to_list(request, start, {"checked": checked})
+    return _back_to_list(request, start, checked)
 
 
 @require_POST
@@ -360,7 +360,7 @@ def shopping_extra_check(request, pk: int):
     extra = get_object_or_404(ShoppingExtra, pk=pk)
     extra.checked = request.POST.get("checked") == "1"
     extra.save(update_fields=["checked"])
-    return _back_to_list(request, extra.week_start, {"checked": extra.checked})
+    return _back_to_list(request, extra.week_start, extra.checked)
 
 
 @require_POST

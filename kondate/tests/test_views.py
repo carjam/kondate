@@ -258,7 +258,7 @@ def test_shopping_check_sets_state_idempotently(client_in, make_recipe):
     url = reverse("kondate:shopping_check", args=[(MONDAY + dt.timedelta(days=3)).isoformat(), chive.pk])
     for _ in range(2):
         response = client_in.post(url, {"checked": "1"}, headers={"Accept": "application/json"})
-        assert response.json() == {"checked": True}
+        assert response.json()["checked"] is True
     # keyed on the week start, whichever day of the week was in the URL
     assert ShoppingCheck.objects.filter(week_start=MONDAY, ingredient=chive).count() == 1
     response = client_in.post(url, {"checked": "0"})
@@ -290,11 +290,13 @@ def test_shopping_extra_rejects_blank(client_in):
     assert not ShoppingExtra.objects.exists()
 
 
-def test_shopping_text_endpoint(client_in, make_recipe, plan):
-    plan(make_recipe("Txt1", [("Ginger1", "1 knob")]), MONDAY)
-    response = client_in.get(reverse("kondate:shopping_text", args=[DAY]))
-    assert response["Content-Type"].startswith("text/plain")
-    assert "☐ Ginger1 — 1 knob" in response.content.decode()
+def test_tick_response_carries_refreshed_text(client_in, make_recipe, plan):
+    plan(make_recipe("Txt1", [("Ginger1", "1 knob"), ("Garlic1", "2")]), MONDAY)
+    ginger = Ingredient.objects.get(name="Ginger1")
+    url = reverse("kondate:shopping_check", args=[DAY, ginger.pk])
+    data = client_in.post(url, {"checked": "1"}, headers={"Accept": "application/json"}).json()
+    assert data["checked"] is True
+    assert "☐ Garlic1 — 2" in data["text"] and "Ginger1" not in data["text"]
 
 
 def test_shopping_page_embeds_copyable_text(client_in, make_recipe, plan):
@@ -352,7 +354,7 @@ def test_week_page_offers_quick_plan_picker(client_in, make_recipe, plan):
     assert suggestions[0] == "Pick old"  # longest-ago first
     assert "Pick this week" not in suggestions
     assert b'id="planner"' in response.content
-    assert b'data-search="pick old pk1 "' in response.content
+    assert b'data-search="pick old pk1"' in response.content
 
 
 def test_meal_form_uses_slot_radios(client_in):

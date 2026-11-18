@@ -4,6 +4,11 @@ from django.db.models.functions import Lower
 from .models import Ingredient, Meal, Recipe, ShoppingExtra
 
 
+def squash_spaces(value: str) -> str:
+    """"  Brand  New  Thing " -> "Brand New Thing", so names match on lookup."""
+    return " ".join(value.split())
+
+
 class MealForm(forms.ModelForm):
     class Meta:
         model = Meal
@@ -46,7 +51,7 @@ class RecipeItemForm(forms.Form):
     amount = forms.CharField(max_length=100, required=False)
 
     def clean_ingredient(self):
-        return " ".join(self.cleaned_data["ingredient"].split())
+        return squash_spaces(self.cleaned_data["ingredient"])
 
 
 class BaseRecipeItemFormSet(forms.BaseFormSet):
@@ -106,4 +111,4 @@ class ShoppingExtraForm(forms.ModelForm):
         labels = {"name": "Item"}
 
     def clean_name(self):
-        return " ".join(self.cleaned_data["name"].split())
+        return squash_spaces(self.cleaned_data["name"])

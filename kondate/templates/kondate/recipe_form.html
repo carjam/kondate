@@ -2,7 +2,7 @@
 {% block title %}{% if recipe %}Edit {{ recipe.name|capfirst }}{% else %}New recipe{% endif %}{% endblock %}
 {% block content %}
 <div class="narrow">
-  <a class="backlink" href="{% if recipe %}{{ recipe.get_absolute_url }}{% else %}{% url 'kondate:recipe_list' %}{% endif %}"><svg aria-hidden="true"><use href="#i-left"/></svg>{% if recipe %}{{ recipe.name|capfirst }}{% else %}Recipes{% endif %}</a>
+  <a class="backlink" href="{{ back_url }}"><svg aria-hidden="true"><use href="#i-left"/></svg>{{ back_label }}</a>
   <h1>{% if recipe %}Edit recipe{% else %}New recipe{% endif %}</h1>
   <form method="post" class="card form" id="recipe-form">
     {% csrf_token %}
@@ -35,7 +35,7 @@
 
     <div class="actions">
       <button class="btn primary" type="submit">Save recipe</button>
-      <a class="btn ghost" href="{% if recipe %}{{ recipe.get_absolute_url }}{% else %}{% url 'kondate:recipe_list' %}{% endif %}">Cancel</a>
+      <a class="btn ghost" href="{{ back_url }}">Cancel</a>
     </div>
   </form>
 </div>

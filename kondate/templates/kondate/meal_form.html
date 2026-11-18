@@ -2,7 +2,7 @@
 {% block title %}{% if meal %}Edit meal{% else %}Plan a meal{% endif %}{% endblock %}
 {% block content %}
 <div class="narrow">
-  <a class="backlink" href="{% if meal %}{% url 'kondate:week_of' meal.date|date:'Y-m-d' %}{% else %}{% url 'kondate:week' %}{% endif %}"><svg aria-hidden="true"><use href="#i-left"/></svg>Week</a>
+  <a class="backlink" href="{{ back_url }}"><svg aria-hidden="true"><use href="#i-left"/></svg>Week</a>
   <h1>{% if meal %}Edit {{ meal.title|capfirst }}{% else %}Plan a meal{% endif %}</h1>
   <form method="post" class="card form">
     {% csrf_token %}
@@ -29,7 +29,7 @@
     </div>
     <div class="actions">
       <button class="btn primary" type="submit">{% if meal %}Save{% else %}Add to plan{% endif %}</button>
-      <a class="btn ghost" href="{% if meal %}{% url 'kondate:week_of' meal.date|date:'Y-m-d' %}{% else %}{% url 'kondate:week' %}{% endif %}">Cancel</a>
+      <a class="btn ghost" href="{{ back_url }}">Cancel</a>
     </div>
   </form>
   {% if meal %}

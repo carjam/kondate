@@ -24,7 +24,7 @@
 
 <ul class="cardgrid" id="recipe-grid">
   {% for recipe in recipes %}
-  <li class="card recipecard" data-search="{{ recipe.name|lower }} {% for i in recipe.ingredients.all %}{{ i.name|lower }} {% endfor %}">
+  <li class="card recipecard" data-search="{{ recipe.search_text }}">
     <a class="recipecard-main" href="{{ recipe.get_absolute_url }}">
       <span class="recipecard-name">{{ recipe.name|capfirst }}</span>
       <span class="muted small">

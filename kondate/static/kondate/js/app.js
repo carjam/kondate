@@ -11,6 +11,19 @@
   function $(sel, root) { return (root || document).querySelector(sel); }
   function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
 
+  // Show the rows whose data-search contains the query (and that pass `extra`,
+  // if given); hide the rest. Returns how many are showing.
+  function filterRows(rows, query, extra) {
+    var q = query.trim().toLowerCase();
+    var shown = 0;
+    rows.forEach(function (row) {
+      var hit = row.getAttribute("data-search").indexOf(q) !== -1 && (!extra || extra(row));
+      row.hidden = !hit;
+      if (hit) shown++;
+    });
+    return shown;
+  }
+
   /* Quick-plan sheet (week page) ------------------------------------------ */
   function initPlanner() {
     var dialog = $("#planner");
@@ -24,15 +37,8 @@
     var noMatch = $("[data-no-match]", dialog);
 
     function filter() {
-      var q = search.value.trim().toLowerCase();
-      var shown = 0;
-      rows.forEach(function (li) {
-        var hit = !q || li.getAttribute("data-search").indexOf(q) !== -1;
-        li.hidden = !hit;
-        if (hit) shown++;
-      });
-      if (suggestions) suggestions.hidden = !!q;
-      noMatch.hidden = shown > 0;
+      noMatch.hidden = filterRows(rows, search.value) > 0;
+      if (suggestions) suggestions.hidden = search.value.trim() !== "";
     }
 
     $$("[data-plan-day]").forEach(function (link) {
@@ -87,16 +93,9 @@
       if (bar) bar.value = total - left;
     }
 
-    // Ticks can finish out of order; only the newest refresh may write the text.
-    var textVersion = 0;
-    function refreshText() {
-      if (!text) return;
-      var version = ++textVersion;
-      fetch(text.getAttribute("data-src"), { credentials: "same-origin" })
-        .then(function (r) { return r.ok ? r.text() : Promise.reject(r.status); })
-        .then(function (body) { if (version === textVersion) text.value = body; })
-        .catch(function () { /* keep the last good copy */ });
-    }
+    // Each tick's response carries the refreshed copy-paste text. Ticks on
+    // different items can finish out of order, so only the newest one writes it.
+    var sent = 0, written = 0;
 
     var pending = new WeakMap();
     document.addEventListener("submit", function (event) {
@@ -117,6 +116,7 @@
       // Send one item's requests in order, so a quick tick-untick can't arrive
       // reversed and leave the server disagreeing with the screen.
       var previous = pending.get(form) || Promise.resolve();
+      var order = ++sent;
       var request = previous.then(function () {
         return fetch(form.action, {
           method: "POST", body: body, credentials: "same-origin",
@@ -124,7 +124,9 @@
         });
       }).then(function (r) {
         if (!r.ok) throw new Error(r.status);
-        refreshText();
+        return r.json();
+      }).then(function (data) {
+        if (text && order > written) { text.value = data.text; written = order; }
       });
       pending.set(form, request.catch(function () {}));
       request.catch(function () { window.location.reload(); });
@@ -194,14 +196,9 @@
       var groups = $$("[data-group]", target);
 
       function apply() {
-        var q = input.value.trim().toLowerCase();
         var buy = (buyRadios.filter(function (r) { return r.checked; })[0] || {}).value || "";
-        var shown = 0;
-        rows.forEach(function (row) {
-          var hit = row.getAttribute("data-search").indexOf(q) !== -1 &&
-            (!buy || row.getAttribute("data-buy") === buy);
-          row.hidden = !hit;
-          if (hit) shown++;
+        var shown = filterRows(rows, input.value, buy && function (row) {
+          return row.getAttribute("data-buy") === buy;
         });
         // Hide an aisle heading when none of its rows are showing.
         groups.forEach(function (group) {

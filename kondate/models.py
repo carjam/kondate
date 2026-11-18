@@ -7,7 +7,7 @@ Data is shared by every signed-in account (one household per deployment).
 from urllib.parse import urlsplit
 
 from django.db import models
-from django.db.models import Case, Q, Value, When
+from django.db.models import Case, Max, Prefetch, Q, Value, When
 from django.db.models.functions import Lower
 from django.urls import reverse
 
@@ -82,11 +82,21 @@ class Ingredient(models.Model):
         return cls.Category.values.index(category) if category in cls.Category.values else len(cls.Category.values)
 
 
+class RecipeQuerySet(models.QuerySet):
+    def for_browsing(self):
+        """What recipe pickers show: when each was last planned, plus the
+        ingredient names that ``Recipe.search_text`` reads (one extra query)."""
+        names = Prefetch("ingredients", queryset=Ingredient.objects.only("name"))
+        return self.annotate(last_planned=Max("meals__date")).prefetch_related(names)
+
+
 class Recipe(models.Model):
     name = models.CharField(max_length=200)
     url = models.URLField(max_length=500, blank=True)
     notes = models.TextField(blank=True)
     ingredients = models.ManyToManyField(Ingredient, through="RecipeIngredient", related_name="recipes")
+
+    objects = RecipeQuerySet.as_manager()
 
     class Meta:
         ordering = [Lower("name")]
@@ -105,6 +115,12 @@ class Recipe(models.Model):
         """The link's site, e.g. "tasteofhome.com"."""
         host = urlsplit(self.url).hostname or ""
         return host.removeprefix("www.")
+
+    @property
+    def search_text(self) -> str:
+        """Lowercase name and ingredient names, for filtering in the browser.
+        Use with ``Recipe.objects.for_browsing()`` to avoid a query per recipe."""
+        return " ".join([self.name, *(i.name for i in self.ingredients.all())]).lower()
 
 
 class RecipeIngredient(models.Model):

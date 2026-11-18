@@ -150,7 +150,8 @@ def build_shopping_list(start: dt.date) -> ShoppingList:
     return ShoppingList(start, sections, pantry, extras, meals)
 
 
-def _day_range(start: dt.date, end: dt.date) -> str:
+def day_range(start: dt.date, end: dt.date) -> str:
+    """ "Nov 16–22", or "Nov 30 – Dec 6" across a month boundary."""
     if start.month == end.month:
         return f"{start:%b} {start.day}–{end.day}"
     return f"{start:%b} {start.day} – {end:%b} {end.day}"
@@ -162,7 +163,7 @@ def shopping_list_text(shopping: ShoppingList) -> str:
     Only what's still left to buy is included, so copying after a first trip
     gives the list for the second one.
     """
-    out = [f"Shopping list · {_day_range(shopping.week_start, shopping.week_end)}"]
+    out = [f"Shopping list · {day_range(shopping.week_start, shopping.week_end)}"]
 
     def block(title: str, rows: list[str]) -> None:
         if rows:

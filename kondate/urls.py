@@ -22,7 +22,6 @@ urlpatterns = [
     path("shopping/", views.shopping, name="shopping"),
     path("shopping/<str:day>/", views.shopping, name="shopping_week"),
     path("shopping/<str:day>/check/<int:ingredient_id>/", views.shopping_check, name="shopping_check"),
-    path("shopping/<str:day>/text/", views.shopping_text, name="shopping_text"),
     path("shopping/<str:day>/reset/", views.shopping_reset, name="shopping_reset"),
     path("shopping/<str:day>/new-trip/", views.shopping_new_trip, name="shopping_new_trip"),
     path("shopping/<str:day>/extras/", views.shopping_extra_add, name="shopping_extra_add"),

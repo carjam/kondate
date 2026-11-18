@@ -9,7 +9,7 @@ A small, always-on household tool for planning the week's meals and shopping for
 
 All data is shared by every account on a deployment (one household). Every page requires sign-in.
 
-Ships with the original 2021 collection: 33 recipes, 122 ingredients, and 213 recipe–ingredient amounts, loaded by migration `0002_seed_recipes` from `kondate/seed/recipes_2021.json`.
+Ships with 45 recipes. The original 2021 collection (33 recipes) is loaded by migration `0002_seed_recipes` from `kondate/seed/recipes_2021.json`. Migration `0004_recipe_data` (`kondate/seed/recipes_2026_11.json`) fills in the five 2021 recipes that had no ingredients and adds 12 recipes from the official [Campfire Cooking in Another World Cookpad account](https://cookpad.com/jp/users/114280341), with ingredient names translated to match existing ones so they merge on the shopping list.
 
 ## Stack
 

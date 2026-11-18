@@ -1,0 +1,158 @@
+{
+  "_about": "Loaded by migration 0004_recipe_data. 'fill' adds ingredients to existing recipes that have none; 'add' creates recipes that don't exist yet. Ingredient rows are [name, amount]; new ingredient names need an entry in 'ingredients' (category, stock). Water is left out on purpose: nobody buys it.",
+  "ingredients": {
+    "aonori": ["spices", "pantry"],
+    "bacon": ["meat", "as_needed"],
+    "bean sprouts": ["produce", "as_needed"],
+    "beef chuck": ["meat", "as_needed"],
+    "beef roast": ["meat", "as_needed"],
+    "broccoli": ["produce", "as_needed"],
+    "cabbage": ["produce", "as_needed"],
+    "cayenne pepper": ["spices", "pantry"],
+    "chicken stock powder": ["pantry", "pantry"],
+    "chicken thigh": ["meat", "as_needed"],
+    "chuno sauce": ["condiments", "pantry"],
+    "consomme cube": ["pantry", "pantry"],
+    "curry roux": ["pantry", "as_needed"],
+    "demi-glace sauce": ["pantry", "as_needed"],
+    "diced pimentos": ["pantry", "as_needed"],
+    "dried sakura shrimp": ["pantry", "as_needed"],
+    "frozen pilaf": ["frozen", "as_needed"],
+    "garlic chives": ["produce", "as_needed"],
+    "garlic powder": ["spices", "pantry"],
+    "ground beef & pork": ["meat", "as_needed"],
+    "ground pork": ["meat", "as_needed"],
+    "gyoza wrappers": ["other", "as_needed"],
+    "hayashi roux": ["pantry", "as_needed"],
+    "herb salt": ["spices", "pantry"],
+    "hot dog buns": ["bakery", "as_needed"],
+    "jalapeno": ["produce", "as_needed"],
+    "kamaboko": ["other", "as_needed"],
+    "katsuobushi": ["pantry", "pantry"],
+    "kimchi hot pot base": ["condiments", "as_needed"],
+    "naganegi": ["produce", "as_needed"],
+    "napa cabbage": ["produce", "as_needed"],
+    "nutmeg": ["spices", "pantry"],
+    "okonomiyaki flour": ["pantry", "as_needed"],
+    "okonomiyaki sauce": ["condiments", "pantry"],
+    "onion powder": ["spices", "pantry"],
+    "oysters": ["meat", "as_needed"],
+    "pearl onions": ["produce", "as_needed"],
+    "port wine": ["other", "as_needed"],
+    "potato": ["produce", "as_needed"],
+    "quail eggs": ["dairy", "as_needed"],
+    "red wine": ["other", "as_needed"],
+    "rosemary": ["produce", "as_needed"],
+    "shrimp": ["meat", "as_needed"],
+    "shrimp tempura": ["other", "as_needed"],
+    "squid": ["meat", "as_needed"],
+    "steak sauce": ["condiments", "pantry"],
+    "thin-sliced pork": ["meat", "as_needed"],
+    "thyme": ["produce", "as_needed"],
+    "unsweetened soy milk": ["dairy", "as_needed"],
+    "whole chicken": ["meat", "as_needed"],
+    "whole-grain mustard": ["condiments", "pantry"],
+    "yakisoba noodles": ["other", "as_needed"]
+  },
+  "fill": [
+    {
+      "name": "mexican rice",
+      "source": "The recipe's own notes: jasmine rice with lime zest and butter.",
+      "ingredients": [["jasmine rice", ""], ["lime", "zest"], ["butter", ""]]
+    },
+    {
+      "name": "hot dogs",
+      "source": "The recipe's own notes: sauerkraut and good mustard.",
+      "ingredients": [["hot dog weiner", ""], ["hot dog buns", ""], ["sour krout", ""], ["mustard", "good mustard"]]
+    },
+    {
+      "name": "taragon scrambled eggs",
+      "url": "https://app.ckbk.com/recipe/crai89894f03s001ss002r002/scrambled-eggs-with-tarragon",
+      "notes": "Craig Claiborne's method: about 1/2 to 1 tsp chopped tarragon for every 2 eggs, stirred in before they hit the pan.",
+      "ingredients": [["egg", "2 per person"], ["taragon", "1/2 to 1 tsp per 2 eggs"], ["butter", "1 tbsp"], ["salt", "to taste"]]
+    },
+    {
+      "name": "chilean dessert",
+      "notes": "Suspiro de limeña: a manjar blanco base topped with port meringue. The site blocks automated reads, so the meringue's wine and sugar amounts aren't recorded here; check the link.",
+      "ingredients": [["evaporated milk", "12 fl oz can"], ["condensed milk", "14 oz can"], ["egg", "3, separated"], ["sugar", "1 cup"], ["port wine", "for the meringue"], ["cinnamon", "to sprinkle"]]
+    },
+    {
+      "name": "piminto cheese sandwich",
+      "ingredients": [["cheddar cheese", "2 cups, extra-sharp, shredded"], ["cream cheese", "8 oz"], ["mayonaise", "1/2 cup"], ["diced pimentos", "4 oz jar, drained"], ["jalapeno", "1, minced"], ["garlic powder", "to taste"], ["cayenne pepper", "to taste"], ["onion powder", "to taste"], ["salt", "to taste"], ["black pepper", "to taste"], ["bread", ""]]
+    }
+  ],
+  "add": [
+    {
+      "name": "Deluxe okonomiyaki with oysters (デラックスお好み焼き　カーキ入り)",
+      "url": "https://cookpad.com/jp/recipes/25258857",
+      "notes": "Makes 2. From the official Campfire Cooking in Another World (とんでもスキルで異世界放浪メシ) Cookpad account.",
+      "ingredients": [["cabbage", "600 g"], ["okonomiyaki flour", "200 g"], ["egg", "4"], ["dried sakura shrimp", "5 tbsp"], ["canola oil", "as needed"], ["yakisoba noodles", "2 packs"], ["squid", "1"], ["shrimp", "6"], ["oysters", "4, shucked"], ["okonomiyaki sauce", "as needed"], ["mayonaise", "as needed"], ["aonori", "as needed"], ["katsuobushi", "as needed"]]
+    },
+    {
+      "name": "Hayashi rice (ハヤシライス)",
+      "url": "https://cookpad.com/jp/recipes/25258301",
+      "notes": "Serves 2. From the official Campfire Cooking in Another World (とんでもスキルで異世界放浪メシ) Cookpad account.",
+      "ingredients": [["onion", "1/2"], ["bella mushrooms", "5"], ["beef chuck", "100 g"], ["canola oil", "1/2 tbsp"], ["salt", "to taste"], ["black pepper", "to taste"], ["hayashi roux", "1/2 pack"], ["jasmine rice", "as much as you like"], ["heavy cream", "as needed"], ["broccoli", "2 florets"]]
+    },
+    {
+      "name": "Salt-crust roast beef (ブラッディホーンブル肉の塩釜焼き)",
+      "url": "https://cookpad.com/jp/recipes/25229995",
+      "notes": "From the official Campfire Cooking in Another World (とんでもスキルで異世界放浪メシ) Cookpad account; \"bloody horn bull\" is beef. Egg whites go in the salt crust, and the yolks make the sauce with the mustard.",
+      "ingredients": [["beef roast", "1.5 kg"], ["garlic clove", "3 tbsp, grated (tube)"], ["black pepper", "as needed"], ["lettuce", "about 10 leaves"], ["egg", "12"], ["salt", "5 kg"], ["rosemary", "15 g"], ["whole-grain mustard", "5 tbsp"]]
+    },
+    {
+      "name": "Home-style pork curry (オーク肉のおうちカレー)",
+      "url": "https://cookpad.com/jp/recipes/25229791",
+      "notes": "Serves 2. From the official Campfire Cooking in Another World (とんでもスキルで異世界放浪メシ) Cookpad account; \"orc meat\" is pork. Uses 1/4 pack each of two roux: S&B Golden Curry (mild) and S&B Fond de Veau Dinner Curry.",
+      "ingredients": [["pork loin", "120 g, in a block"], ["onion", "1/2"], ["potato", "1"], ["carrot", "1/3"], ["canola oil", "1 tbsp"], ["curry roux", "1/4 pack each of 2 kinds"], ["jasmine rice", "as much as you like"]]
+    },
+    {
+      "name": "Roast chicken stuffed with pilaf (ローストコカトリスのピラフ詰め)",
+      "url": "https://cookpad.com/jp/recipes/25214717",
+      "notes": "From the official Campfire Cooking in Another World (とんでもスキルで異世界放浪メシ) Cookpad account; \"cockatrice\" is chicken.",
+      "ingredients": [["whole chicken", "1 (2 kg)"], ["herb salt", "1 tbsp"], ["frozen pilaf", "250 g"], ["olive oil", "as needed"]]
+    },
+    {
+      "name": "Meatloaf (ミートローフ)",
+      "url": "https://cookpad.com/jp/recipes/25207106",
+      "notes": "From the official Campfire Cooking in Another World (とんでもスキルで異世界放浪メシ) Cookpad account. Sauce: 15 g butter, 4 tbsp ketchup, 4 tbsp chuno sauce, 100 ml red wine.",
+      "ingredients": [["bread crumbs", "2 tbsp"], ["milk", "2 tbsp"], ["onion", "1/2"], ["butter", "25 g"], ["frozen mixed vegetables", "80 g"], ["ground beef & pork", "300 g"], ["egg", "1"], ["salt", "pinch"], ["black pepper", "pinch"], ["nutmeg", "pinch"], ["bacon", "5 slices"], ["quail eggs", "4, boiled"], ["ketchup", "4 tbsp"], ["chuno sauce", "4 tbsp"], ["red wine", "100 ml"]]
+    },
+    {
+      "name": "Hearty soy milk soup (やさしい具だくさん豆乳スープ)",
+      "url": "https://cookpad.com/jp/recipes/25189093",
+      "notes": "Serves 2. From the official Campfire Cooking in Another World (とんでもスキルで異世界放浪メシ) Cookpad account.",
+      "ingredients": [["carrot", "1/3"], ["onion", "1/4"], ["bacon", "1 slice"], ["broccoli", "1/3 head"], ["canola oil", "1/2 tbsp"], ["consomme cube", "1"], ["unsweetened soy milk", "400 ml"]]
+    },
+    {
+      "name": "Nabeyaki udon with chicken (ロックバード肉入り鍋焼きうどん)",
+      "url": "https://cookpad.com/jp/recipes/25156875",
+      "notes": "Serves 2. From the official Campfire Cooking in Another World (とんでもスキルで異世界放浪メシ) Cookpad account; \"rock bird\" is chicken. Broth: 600 ml water, 1 tbsp soy sauce, 2 tbsp mirin, 1/2 tsp salt, 2 tsp granulated dashi.",
+      "ingredients": [["chicken thigh", "1 piece"], ["shiitake mushroom", "4"], ["kamaboko", "1/3 log"], ["naganegi", "1/2"], ["dashi", "2 tsp granulated"], ["udon noodles", "2 portions, frozen"], ["shrimp tempura", "2, store-bought"], ["egg", "1"], ["soy sauce", "1 tbsp"], ["mirin", "2 tbsp"], ["salt", "1/2 tsp"]]
+    },
+    {
+      "name": "Beef stew (ワイバーン肉のビーフシチュー)",
+      "url": "https://cookpad.com/jp/recipes/25148358",
+      "notes": "Serves 4. From the official Campfire Cooking in Another World (とんでもスキルで異世界放浪メシ) Cookpad account; \"wyvern meat\" is beef.",
+      "ingredients": [["beef chuck", "300 g"], ["salt", "pinch"], ["black pepper", "pinch"], ["onion", "1"], ["carrot", "1/2"], ["potato", "1"], ["butter", "1 tbsp, salted"], ["red wine", "100 ml"], ["demi-glace sauce", "1 can (290 g)"], ["ketchup", "1 tbsp"]]
+    },
+    {
+      "name": "Roast beef with vegetables (ローストドラゴン)",
+      "url": "https://cookpad.com/jp/recipes/25128921",
+      "notes": "From the official Campfire Cooking in Another World (とんでもスキルで異世界放浪メシ) Cookpad account; \"dragon meat\" is a beef roast.",
+      "ingredients": [["beef roast", "500 g"], ["salt", "1 tsp"], ["black pepper", "as needed"], ["potato", "3"], ["carrot", "1"], ["pearl onions", "8"], ["olive oil", "as needed"], ["rosemary", "2 sprigs"], ["thyme", "2 sprigs"], ["steak sauce", "as needed"]]
+    },
+    {
+      "name": "Pork kimchi rice bowl (オーク肉の豚キムチ丼)",
+      "url": "https://cookpad.com/jp/recipes/25109953",
+      "notes": "Serves 2. From the official Campfire Cooking in Another World (とんでもスキルで異世界放浪メシ) Cookpad account; \"orc meat\" is pork. Topped with soft-cooked (onsen) eggs.",
+      "ingredients": [["thin-sliced pork", "200 g"], ["onion", "1/2"], ["napa cabbage", "3 leaves"], ["garlic chives", "1/2 bunch"], ["bean sprouts", "100 g"], ["kimchi hot pot base", "5 tbsp"], ["garlic clove", "1 tsp, grated"], ["sesame oil", "1/2 tbsp"], ["jasmine rice", "as much as you like"], ["egg", "2"]]
+    },
+    {
+      "name": "Gyoza (オークジェネラルのしっかり味付け餃子)",
+      "url": "https://cookpad.com/jp/recipes/25084691",
+      "notes": "Serves 2. From the official Campfire Cooking in Another World (とんでもスキルで異世界放浪メシ) Cookpad account; \"orc general\" is pork. For crisp edges, fry with 1 tbsp flour mixed into 150 ml water.",
+      "ingredients": [["cabbage", "180 g"], ["garlic chives", "40 g"], ["ground pork", "250 g"], ["gyoza wrappers", "30"], ["vegetable oil", "1/2 tbsp"], ["ginger", "1 tsp, grated"], ["garlic clove", "1 tsp, grated"], ["soy sauce", "1/2 tbsp"], ["sake", "1 tbsp"], ["chicken stock powder", "1 tsp"], ["sesame oil", "1 tbsp"], ["salt", "pinch"], ["black pepper", "pinch"], ["flour", "1 tbsp"]]
+    }
+  ]
+}

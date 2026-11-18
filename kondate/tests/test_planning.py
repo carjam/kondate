@@ -89,7 +89,14 @@ def test_seed_migration_loaded_original_recipes():
     assert amounts["chicken breast"] == "4 breast halves"
     # 0002 seeded is_staple=True; 0003 turned that into "usually have it".
     assert Ingredient.objects.get(name="salt").stock == Ingredient.Stock.PANTRY
-    assert Ingredient.objects.filter(stock=Ingredient.Stock.PANTRY).count() == 32
+    import json
+    from pathlib import Path
+
+    seed = json.loads((Path(__file__).parents[1] / "seed" / "recipes_2021.json").read_text())
+    staples = [i["name"] for i in seed["ingredients"] if i["is_staple"]]
+    assert set(
+        Ingredient.objects.filter(name__in=staples).values_list("stock", flat=True)
+    ) == {Ingredient.Stock.PANTRY}
 
 
 @pytest.mark.django_db
@@ -143,3 +150,20 @@ def test_shopping_list_text_lists_what_is_left(make_recipe, plan):
         "Mon  Tacos1\n"
         "Tue  leftovers (lunch)\n"
     )
+
+
+@pytest.mark.django_db
+def test_recipe_data_migration_filled_empty_recipes_and_added_cookpad():
+    from kondate.models import Recipe
+
+    assert not Recipe.objects.filter(items__isnull=True).exists(), "every recipe has ingredients"
+    hot_dogs = {i.ingredient.name: i.amount for i in Recipe.objects.get(name="hot dogs").items.all()}
+    assert hot_dogs["sour krout"] == "" and hot_dogs["mustard"] == "good mustard"
+
+    assert Recipe.objects.filter(notes__contains="Campfire Cooking in Another World").count() == 12
+    gyoza = Recipe.objects.get(name__startswith="Gyoza")
+    assert gyoza.items.count() == 14
+    # Translated names reuse the 2021 ingredients, so the shopping list merges them.
+    assert Ingredient.objects.filter(name__iexact="jasmine rice").count() == 1
+    assert Ingredient.objects.get(name="jasmine rice").recipes.filter(name__startswith="Hayashi").exists()
+    assert Ingredient.objects.get(name="nutmeg").stock == Ingredient.Stock.PANTRY

@@ -4,6 +4,7 @@ per-week shopping list state derived from it.
 Data is shared by every signed-in account (one household per deployment).
 """
 
+import re
 from urllib.parse import urlsplit
 
 from django.db import models
@@ -82,6 +83,13 @@ class Ingredient(models.Model):
         return cls.Category.values.index(category) if category in cls.Category.values else len(cls.Category.values)
 
 
+# A trailing "(...)" that contains Japanese: the dish's original name, as in
+# "Gyoza (オークジェネラルのしっかり味付け餃子)". Full-width brackets count too.
+_ORIGINAL_NAME = re.compile(
+    r"^(?P<name>.*?\S)\s*[(（](?P<original>[^()（）]*[\u3040-\u30ff\u3400-\u9fff][^()（）]*)[)）]$"
+)
+
+
 class RecipeQuerySet(models.QuerySet):
     def for_browsing(self):
         """What recipe pickers show: when each was last planned, plus the
@@ -115,6 +123,13 @@ class Recipe(models.Model):
         """The link's site, e.g. "tasteofhome.com"."""
         host = urlsplit(self.url).hostname or ""
         return host.removeprefix("www.")
+
+    @property
+    def name_parts(self) -> tuple[str, str]:
+        """("Gyoza", "オーク…餃子") when the name ends with its Japanese original
+        in brackets, so narrow layouts can show that part smaller; (name, "") otherwise."""
+        match = _ORIGINAL_NAME.match(self.name)
+        return (match["name"], match["original"]) if match else (self.name, "")
 
     @property
     def search_text(self) -> str:
@@ -172,6 +187,11 @@ class Meal(models.Model):
     @property
     def title(self) -> str:
         return self.recipe.name if self.recipe_id else self.note
+
+    @property
+    def title_parts(self) -> tuple[str, str]:
+        """``title`` split like ``Recipe.name_parts``."""
+        return self.recipe.name_parts if self.recipe_id else (self.note, "")
 
 
 class ShoppingCheck(models.Model):

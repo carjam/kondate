@@ -158,7 +158,7 @@ def test_recipe_data_migration_filled_empty_recipes_and_added_cookpad():
 
     assert not Recipe.objects.filter(items__isnull=True).exists(), "every recipe has ingredients"
     hot_dogs = {i.ingredient.name: i.amount for i in Recipe.objects.get(name="hot dogs").items.all()}
-    assert hot_dogs["sour krout"] == "" and hot_dogs["mustard"] == "good mustard"
+    assert hot_dogs["sauerkraut"] == "" and hot_dogs["mustard"] == "good mustard"
 
     assert Recipe.objects.filter(notes__contains="Campfire Cooking in Another World").count() == 12
     gyoza = Recipe.objects.get(name__startswith="Gyoza")
@@ -167,3 +167,49 @@ def test_recipe_data_migration_filled_empty_recipes_and_added_cookpad():
     assert Ingredient.objects.filter(name__iexact="jasmine rice").count() == 1
     assert Ingredient.objects.get(name="jasmine rice").recipes.filter(name__startswith="Hayashi").exists()
     assert Ingredient.objects.get(name="nutmeg").stock == Ingredient.Stock.PANTRY
+
+
+@pytest.mark.django_db
+def test_spelling_migration_renamed_seed_names():
+    from kondate.models import Recipe
+
+    assert Recipe.objects.filter(name="pimento cheese sandwich").exists()
+    assert Ingredient.objects.filter(name="mayonnaise").exists()
+    assert not Ingredient.objects.filter(name__in=["mayonaise", "sour krout", "taragon"]).exists()
+
+
+@pytest.mark.django_db
+def test_spelling_migration_merges_into_an_existing_correct_name(make_recipe):
+    """If both spellings exist, recipes and ticks move to the correct one."""
+    import importlib
+
+    from django.apps import apps
+
+    from kondate.models import ShoppingCheck
+
+    fix = importlib.import_module("kondate.migrations.0005_fix_spellings")
+    wrong = Ingredient.objects.create(name="tumeric")
+    right = Ingredient.objects.get(name="turmeric")
+    both = make_recipe("Uses both1")
+    both.items.create(ingredient=wrong, amount="1 tsp")
+    both.items.create(ingredient=right, amount="2 tsp")
+    only_wrong = make_recipe("Uses wrong1")
+    only_wrong.items.create(ingredient=wrong, amount="1/2 tsp")
+    ShoppingCheck.objects.create(week_start=MONDAY, ingredient=wrong)
+
+    fix.forwards(apps, None)
+
+    assert not Ingredient.objects.filter(pk=wrong.pk).exists()
+    assert [(i.ingredient_id, i.amount) for i in both.items.all()] == [(right.pk, "2 tsp")]
+    assert [(i.ingredient_id, i.amount) for i in only_wrong.items.all()] == [(right.pk, "1/2 tsp")]
+    assert ShoppingCheck.objects.get().ingredient_id == right.pk
+
+
+@pytest.mark.django_db
+def test_ingredients_in_store_order():
+    names = ["Zz frozen1", "Aa produce1", "Mm other1"]
+    Ingredient.objects.create(name=names[0], category=Ingredient.Category.FROZEN)
+    Ingredient.objects.create(name=names[1], category=Ingredient.Category.PRODUCE)
+    Ingredient.objects.create(name=names[2], category=Ingredient.Category.OTHER)
+    ordered = [i.name for i in Ingredient.objects.filter(name__in=names).in_store_order()]
+    assert ordered == ["Aa produce1", "Zz frozen1", "Mm other1"]

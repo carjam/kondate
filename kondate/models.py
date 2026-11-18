@@ -7,9 +7,20 @@ Data is shared by every signed-in account (one household per deployment).
 from urllib.parse import urlsplit
 
 from django.db import models
-from django.db.models import Q
+from django.db.models import Case, Q, Value, When
 from django.db.models.functions import Lower
 from django.urls import reverse
+
+
+class IngredientQuerySet(models.QuerySet):
+    def in_store_order(self):
+        """Aisle in store-walk order (the order ``Category`` is declared in), then name."""
+        categories = Ingredient.Category.values
+        rank = Case(
+            *(When(category=value, then=Value(i)) for i, value in enumerate(categories)),
+            default=Value(len(categories)),
+        )
+        return self.order_by(rank, Lower("name"))
 
 
 class Ingredient(models.Model):
@@ -46,6 +57,8 @@ class Ingredient(models.Model):
     usual_amount = models.CharField(
         max_length=100, blank=True, db_default="", help_text="For weekly items, e.g. “1 gallon”."
     )
+
+    objects = IngredientQuerySet.as_manager()
 
     class Meta:
         ordering = [Lower("name")]
@@ -155,6 +168,9 @@ class ShoppingCheck(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["week_start", "ingredient"], name="shopping_check_unique"),
         ]
+
+    def __str__(self) -> str:
+        return f"{self.week_start}: {self.ingredient_id} ticked"
 
 
 class ShoppingExtra(models.Model):

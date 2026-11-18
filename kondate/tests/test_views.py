@@ -360,6 +360,28 @@ def test_meal_form_uses_slot_radios(client_in):
     assert b'type="radio" name="slot"' in response.content
 
 
+def test_edit_meal_moves_it_and_says_updated(client_in, make_recipe, plan):
+    meal = plan(make_recipe("Move1"), MONDAY)
+    next_week = MONDAY + dt.timedelta(days=9)
+    response = client_in.post(
+        reverse("kondate:meal_edit", args=[meal.pk]),
+        {"date": next_week.isoformat(), "slot": Meal.Slot.LUNCH, "recipe": meal.recipe_id, "note": ""},
+        follow=True,
+    )
+    meal.refresh_from_db()
+    assert (meal.date, meal.slot) == (next_week, Meal.Slot.LUNCH)
+    assert response.redirect_chain[-1][0] == reverse("kondate:week_of", args=[(MONDAY + dt.timedelta(days=7)).isoformat()])
+    assert "Updated Move1" in response.content.decode()
+
+
+def test_admin_link_only_for_staff(client_in, user):
+    url = reverse("kondate:ingredient_list")
+    assert b"/admin/" not in client_in.get(url).content
+    user.is_staff = True
+    user.save()
+    assert b"/admin/" in client_in.get(url).content
+
+
 # --- ops --------------------------------------------------------------------
 
 def test_ensure_superuser(monkeypatch, django_user_model):

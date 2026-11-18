@@ -90,14 +90,18 @@
       }
     }
 
+    // Ticks can finish out of order; only the newest refresh may write the text.
+    var textVersion = 0;
     function refreshText() {
       if (!text) return;
+      var version = ++textVersion;
       fetch(text.getAttribute("data-src"), { credentials: "same-origin" })
         .then(function (r) { return r.ok ? r.text() : Promise.reject(r.status); })
-        .then(function (body) { text.value = body; })
+        .then(function (body) { if (version === textVersion) text.value = body; })
         .catch(function () { /* keep the last good copy */ });
     }
 
+    var pending = new WeakMap();
     document.addEventListener("submit", function (event) {
       var form = event.target;
       if (!form.classList.contains("check")) return;
@@ -113,13 +117,20 @@
       refreshCounts();
       var body = new FormData(form);
       body.set("checked", next ? "1" : "0");
-      fetch(form.action, {
-        method: "POST", body: body, credentials: "same-origin",
-        headers: { "Accept": "application/json" }
+      // Send one item's requests in order, so a quick tick-untick can't arrive
+      // reversed and leave the server disagreeing with the screen.
+      var previous = pending.get(form) || Promise.resolve();
+      var request = previous.then(function () {
+        return fetch(form.action, {
+          method: "POST", body: body, credentials: "same-origin",
+          headers: { "Accept": "application/json" }
+        });
       }).then(function (r) {
         if (!r.ok) throw new Error(r.status);
         refreshText();
-      }).catch(function () { window.location.reload(); });
+      });
+      pending.set(form, request.catch(function () {}));
+      request.catch(function () { window.location.reload(); });
     });
 
     if (hideToggle) {
@@ -229,6 +240,21 @@
     });
   }
 
+  /* Double-submit guard ----------------------------------------------------- */
+  // A double tap on a phone posts twice: two copies of last week, two extras.
+  // Runs last (bubble phase on window), so forms handled by fetch or cancelled
+  // by a confirm() are left alone.
+  function initSubmitGuard() {
+    window.addEventListener("submit", function (event) {
+      var form = event.target;
+      if (event.defaultPrevented) return;
+      if (form.hasAttribute("data-submitting")) { event.preventDefault(); return; }
+      form.setAttribute("data-submitting", "");
+      // Back/forward cache can restore the page with the flag still set.
+      window.addEventListener("pageshow", function () { form.removeAttribute("data-submitting"); }, { once: true });
+    });
+  }
+
   /* Confirm destructive forms ----------------------------------------------- */
   function initConfirms() {
     $$("form[data-confirm]").forEach(function (form) {
@@ -244,5 +270,6 @@
     initLiveFilters();
     initRecipeForm();
     initConfirms();
+    initSubmitGuard();
   });
 })();

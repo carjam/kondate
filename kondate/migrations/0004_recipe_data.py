@@ -15,14 +15,14 @@ from pathlib import Path
 
 from django.db import migrations
 
-DATA = Path(__file__).resolve().parent.parent / "seed" / "recipes_2026_11.json"
+SEED_FILE = Path(__file__).resolve().parent.parent / "seed" / "recipes_2026_11.json"
 
 
 def _load():
-    return json.loads(DATA.read_text(encoding="utf-8"))
+    return json.loads(SEED_FILE.read_text(encoding="utf-8"))
 
 
-def forwards(apps, schema_editor):
+def load_recipe_data(apps, schema_editor):
     Ingredient = apps.get_model("kondate", "Ingredient")
     Recipe = apps.get_model("kondate", "Recipe")
     RecipeIngredient = apps.get_model("kondate", "RecipeIngredient")
@@ -61,7 +61,7 @@ def forwards(apps, schema_editor):
         add_items(recipe, entry["ingredients"])
 
 
-def backwards(apps, schema_editor):
+def unload_recipe_data(apps, schema_editor):
     """Remove the added recipes (unless they've been planned) and empty the
     filled ones again. Ingredients are kept: other recipes may use them."""
     Recipe = apps.get_model("kondate", "Recipe")
@@ -88,4 +88,4 @@ def backwards(apps, schema_editor):
 class Migration(migrations.Migration):
     dependencies = [("kondate", "0003_ingredient_stock")]
 
-    operations = [migrations.RunPython(forwards, backwards)]
+    operations = [migrations.RunPython(load_recipe_data, unload_recipe_data)]

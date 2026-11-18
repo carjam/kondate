@@ -1,20 +1,19 @@
 {% extends 'kondate/base.html' %}
-{% block title %}Shopping · {{ week_start|date:"M j" }}{% endblock %}
-{% block bodyclass %}shopping-page{% endblock %}
+{% block title %}Shop · {{ week_label }}{% endblock %}
 {% block content %}
 <div class="pagehead">
   <div>
-    <p class="eyebrow">Shopping list</p>
+    <p class="eyebrow">Shop</p>
     <h1>{{ week_label }}</h1>
     <p class="muted">
       {% with n=shopping.meals|length %}For {{ n }} planned meal{{ n|pluralize }}{% endwith %}
       · <a href="{% url 'kondate:week_of' week_start|date:'Y-m-d' %}">see plan</a>
     </p>
   </div>
-  {% include 'kondate/_weeknav.html' with url_name='kondate:shopping_week' %}
+  {% include 'kondate/_weeknav.html' with url_name='kondate:shopping_of' %}
 </div>
 
-<div class="shopgrid">
+<div class="shopgrid" data-shopping>
   <div class="shopmain">
     {% if shopping.total %}
     <div class="progress card" data-progress>
@@ -49,22 +48,22 @@
       <h2 class="sectionlabel">Extras</h2>
       <ul class="checklist card">
         {% for extra in shopping.extras %}
-        <li class="{% if extra.checked %}done{% endif %}" data-counted>
-          <form method="post" action="{% url 'kondate:shopping_extra_check' extra.pk %}" class="check">
+        <li class="{% if extra.checked %}is-done{% endif %}" data-counted>
+          <form method="post" action="{% url 'kondate:shopping_extra_check' extra.pk %}" class="check" data-tick>
             {% csrf_token %}
             <input type="hidden" name="checked" value="{% if extra.checked %}0{% else %}1{% endif %}">
             <button type="submit" class="tick" role="checkbox" aria-checked="{% if extra.checked %}true{% else %}false{% endif %}">
-              <span class="box"><svg><use href="#i-check"/></svg></span>
+              <span class="box"><svg aria-hidden="true"><use href="#i-check"/></svg></span>
               <span class="what">{{ extra.name }}</span>
             </button>
           </form>
           <form method="post" action="{% url 'kondate:shopping_extra_delete' extra.pk %}">
-            {% csrf_token %}<button class="iconbtn quiet" type="submit" aria-label="Delete {{ extra.name }}"><svg><use href="#i-x"/></svg></button>
+            {% csrf_token %}<button class="iconbtn quiet" type="submit" aria-label="Delete {{ extra.name }}"><svg aria-hidden="true"><use href="#i-x"/></svg></button>
           </form>
         </li>
         {% endfor %}
         <li class="addrow">
-          <form method="post" action="{% url 'kondate:shopping_extra_add' week_start|date:'Y-m-d' %}" class="addextra">
+          <form method="post" action="{% url 'kondate:shopping_extra_new' week_start|date:'Y-m-d' %}" class="addextra">
             {% csrf_token %}
             <label class="sr" for="{{ extra_form.name.id_for_label }}">Item</label>
             {{ extra_form.name }}

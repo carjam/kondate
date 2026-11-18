@@ -4,7 +4,7 @@
 <div class="narrow">
   <a class="backlink" href="{{ back_url }}"><svg aria-hidden="true"><use href="#i-left"/></svg>{{ back_label }}</a>
   <h1>{% if recipe %}Edit recipe{% else %}New recipe{% endif %}</h1>
-  <form method="post" class="card form" id="recipe-form">
+  <form method="post" class="card form">
     {% csrf_token %}
     {% include 'kondate/_form_fields.html' %}
 
@@ -12,7 +12,7 @@
     {{ formset.management_form }}
     {% if formset.non_form_errors %}<div class="formerror">{{ formset.non_form_errors|join:" " }}</div>{% endif %}
     <datalist id="ingredient-names">{% for name in ingredient_names %}<option value="{{ name }}">{% endfor %}</datalist>
-    <div class="itemrows" id="itemrows">
+    <div class="itemrows" data-item-rows>
       <div class="itemrow itemhead"><span>Ingredient</span><span>Amount</span><span class="sr">Remove</span></div>
       {% for f in formset %}
       <div class="itemrow">
@@ -23,14 +23,14 @@
       </div>
       {% endfor %}
     </div>
-    <template id="itemrow-template">
+    <template data-item-template>
       <div class="itemrow">
         <input type="text" name="items-__prefix__-ingredient" list="ingredient-names" aria-label="Ingredient" autocomplete="off" placeholder="e.g. onion">
         <input type="text" name="items-__prefix__-amount" placeholder="e.g. 1/2 cup" aria-label="Amount">
         <label class="del" title="Remove"><input type="checkbox" name="items-__prefix__-DELETE"><svg aria-hidden="true"><use href="#i-x"/></svg><span class="sr">Remove</span></label>
       </div>
     </template>
-    <p><button class="btn ghost" type="button" id="add-row"><svg aria-hidden="true"><use href="#i-plus"/></svg>Another ingredient</button></p>
+    <p><button class="btn ghost" type="button" data-add-row><svg aria-hidden="true"><use href="#i-plus"/></svg>Another ingredient</button></p>
     <p class="muted small">New ingredient names are added automatically. Set their aisle on the <a href="{% url 'kondate:ingredient_list' %}">Ingredients</a> page. Amounts like “1/2 cup” are added together on the shopping list when the units match.</p>
 
     <div class="actions">

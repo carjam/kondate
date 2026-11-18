@@ -6,27 +6,7 @@
   <h1>{% if meal %}Edit {{ meal.title|capfirst }}{% else %}Plan a meal{% endif %}</h1>
   <form method="post" class="card form">
     {% csrf_token %}
-    {% if form.non_field_errors %}<div class="formerror">{{ form.non_field_errors|join:" " }}</div>{% endif %}
-    <div class="field">
-      <label for="{{ form.date.id_for_label }}">Day</label>
-      {{ form.date }}
-      {% for error in form.date.errors %}<small class="error">{{ error }}</small>{% endfor %}
-    </div>
-    <fieldset class="field">
-      <legend>Meal</legend>
-      <div class="segmented">
-        {% for radio in form.slot %}<label>{{ radio.tag }}<span>{{ radio.choice_label }}</span></label>{% endfor %}
-      </div>
-    </fieldset>
-    <div class="field">
-      <label for="{{ form.recipe.id_for_label }}">Recipe</label>
-      {{ form.recipe }}
-    </div>
-    <div class="field">
-      <label for="{{ form.note.id_for_label }}">Note</label>
-      {{ form.note }}
-      <small class="muted">{{ form.note.help_text }}</small>
-    </div>
+    {% include 'kondate/_form_fields.html' %}
     <div class="actions">
       <button class="btn primary" type="submit">{% if meal %}Save{% else %}Add to plan{% endif %}</button>
       <a class="btn ghost" href="{{ back_url }}">Cancel</a>

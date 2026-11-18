@@ -1,6 +1,6 @@
 {# Previous / this week / next. url_name is a view that takes the week's day. #}
 <nav class="weeknav" aria-label="Weeks">
-  <a class="iconbtn" href="{% url url_name prev_week|date:'Y-m-d' %}" aria-label="Previous week"><svg><use href="#i-left"/></svg></a>
+  <a class="iconbtn" href="{% url url_name prev_week|date:'Y-m-d' %}" aria-label="Previous week"><svg aria-hidden="true"><use href="#i-left"/></svg></a>
   <a class="pill{% if week_start == this_week %} is-current{% endif %}" href="{% url url_name this_week|date:'Y-m-d' %}">This week</a>
-  <a class="iconbtn" href="{% url url_name next_week|date:'Y-m-d' %}" aria-label="Next week"><svg><use href="#i-right"/></svg></a>
+  <a class="iconbtn" href="{% url url_name next_week|date:'Y-m-d' %}" aria-label="Next week"><svg aria-hidden="true"><use href="#i-right"/></svg></a>
 </nav>

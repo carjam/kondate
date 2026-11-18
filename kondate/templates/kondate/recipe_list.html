@@ -10,7 +10,7 @@
   <a class="btn primary" href="{% url 'kondate:recipe_new' %}"><svg aria-hidden="true"><use href="#i-plus"/></svg>New recipe</a>
 </div>
 
-<form method="get" class="toolbar" data-live-filter="#recipe-grid">
+<form method="get" class="toolbar" data-live-filter="recipes">
   <label class="searchfield">
     <svg aria-hidden="true"><use href="#i-search"/></svg>
     <input type="search" name="q" value="{{ q }}" placeholder="Search by name or ingredient" aria-label="Search recipes" autocomplete="off">
@@ -22,7 +22,7 @@
   <noscript><button class="btn" type="submit">Search</button></noscript>
 </form>
 
-<ul class="cardgrid" id="recipe-grid">
+<ul class="cardgrid" data-filter-target="recipes">
   {% for recipe in recipes %}
   <li class="card recipecard" data-search="{{ recipe.search_text }}">
     <a class="recipecard-main" href="{{ recipe.get_absolute_url }}">

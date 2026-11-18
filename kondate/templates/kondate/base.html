@@ -32,7 +32,7 @@
     </nav>
     {% endwith %}
     <form method="post" action="{% url 'logout' %}" class="signout">{% csrf_token %}
-      <button class="ghost small" type="submit" title="Signed in as {{ user.get_username }}">Sign out</button>
+      <button class="btn ghost small" type="submit" title="Signed in as {{ user.get_username }}">Sign out</button>
     </form>
     {% endif %}
   </header>

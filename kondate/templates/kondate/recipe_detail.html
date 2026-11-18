@@ -34,10 +34,11 @@
   </ul>
   {% endif %}
 
-  <form method="post" action="{% url 'kondate:recipe_delete' recipe.pk %}" class="danger-zone"
-        data-confirm="Delete {{ recipe.name|capfirst }}? This can't be undone.">
-    {% csrf_token %}
-    <button class="linkbtn danger" type="submit">Delete recipe</button>
-  </form>
+  <div class="danger-zone">
+    <form method="post" action="{% url 'kondate:recipe_delete' recipe.pk %}"
+          data-confirm="Delete {{ recipe.name|capfirst }}? This can't be undone.">
+      {% csrf_token %}<button class="linkbtn danger" type="submit">Delete recipe</button>
+    </form>
+  </div>
 </div>
 {% endblock %}

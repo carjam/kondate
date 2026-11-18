@@ -1,9 +1,9 @@
 {% extends 'kondate/base.html' %}
-{% block title %}Week of {{ week_start|date:"M j" }}{% endblock %}
+{% block title %}Plan · {{ week_label }}{% endblock %}
 {% block content %}
 <div class="pagehead">
   <div>
-    <p class="eyebrow">{% if week_start == this_week %}This week{% elif week_start > this_week %}Coming up{% else %}Past week{% endif %}</p>
+    <p class="eyebrow">Plan</p>
     <h1>{{ week_label }}</h1>
     <p class="muted">
       {% if planned_count %}{{ dinner_count }} dinner{{ dinner_count|pluralize }} planned{% if other_count %} · {{ other_count }} other meal{{ other_count|pluralize }}{% endif %}
@@ -12,7 +12,7 @@
   </div>
   <div class="headactions">
     {% include 'kondate/_weeknav.html' with url_name='kondate:week_of' %}
-    <a class="btn primary" href="{% url 'kondate:shopping_week' week_start|date:'Y-m-d' %}">
+    <a class="btn primary" href="{% url 'kondate:shopping_of' week_start|date:'Y-m-d' %}">
       <svg aria-hidden="true"><use href="#i-basket"/></svg>Shopping list</a>
   </div>
 </div>
@@ -47,7 +47,7 @@
           {% if meal.recipe and meal.note %}<span class="mealnote">{{ meal.note }}</span>{% endif %}
         </a>
         <form method="post" action="{% url 'kondate:meal_delete' meal.pk %}" class="mealremove">
-          {% csrf_token %}<button type="submit" aria-label="Remove {{ meal.title }} from {{ day.date|date:'l' }}"><svg><use href="#i-x"/></svg></button>
+          {% csrf_token %}<button type="submit" aria-label="Remove {{ meal.title }} from {{ day.date|date:'l' }}"><svg aria-hidden="true"><use href="#i-x"/></svg></button>
         </form>
       </li>
       {% endfor %}
@@ -61,16 +61,16 @@
 </div>
 
 {# Quick-plan sheet. Without JS the "+" links fall back to the full meal form. #}
-<dialog class="sheet" id="planner" aria-labelledby="planner-title">
-  <form method="post" action="{% url 'kondate:meal_new' %}" class="sheet-body" id="planner-form">
+<dialog class="sheet" aria-labelledby="planner-title" data-planner>
+  <form method="post" action="{% url 'kondate:meal_new' %}" class="sheet-body">
     {% csrf_token %}
-    <input type="hidden" name="date" id="planner-date">
+    <input type="hidden" name="date" data-planner-date>
     <header class="sheet-head">
       <div>
         <p class="eyebrow">Plan</p>
-        <h2 id="planner-title">Pick a meal</h2>
+        <h2 id="planner-title" data-planner-title>Pick a meal</h2>
       </div>
-      <button type="button" class="iconbtn" data-close aria-label="Close"><svg><use href="#i-x"/></svg></button>
+      <button type="button" class="iconbtn" data-close aria-label="Close"><svg aria-hidden="true"><use href="#i-x"/></svg></button>
     </header>
 
     <fieldset class="segmented" aria-label="Meal">
@@ -81,7 +81,7 @@
 
     <label class="searchfield">
       <svg aria-hidden="true"><use href="#i-search"/></svg>
-      <input type="search" id="planner-search" placeholder="Search recipes or ingredients" autocomplete="off" aria-label="Search recipes">
+      <input type="search" data-planner-search placeholder="Search recipes or ingredients" autocomplete="off" aria-label="Search recipes">
     </label>
 
     <div class="chips" aria-label="Quick notes">
@@ -121,7 +121,7 @@
     </div>
 
     <footer class="sheet-foot">
-      <input type="text" name="note" id="planner-note" maxlength="200" placeholder="Or just a note: “tacos at grandma's”" aria-label="Note" required>
+      <input type="text" name="note" data-planner-note maxlength="200" placeholder="Or just a note: “tacos at grandma's”" aria-label="Note" required>
       <button type="submit" class="btn">Add note</button>
     </footer>
   </form>

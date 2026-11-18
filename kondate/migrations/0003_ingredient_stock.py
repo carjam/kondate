@@ -16,12 +16,12 @@ Expand/contract, because Render runs the old release while the new one boots:
 from django.db import migrations, models
 
 
-def staple_to_pantry(apps, schema_editor):
+def load_stock(apps, schema_editor):
     Ingredient = apps.get_model("kondate", "Ingredient")
     Ingredient.objects.filter(is_staple=True).update(stock="pantry")
 
 
-def pantry_to_staple(apps, schema_editor):
+def unload_stock(apps, schema_editor):
     Ingredient = apps.get_model("kondate", "Ingredient")
     Ingredient.objects.filter(stock="pantry").update(is_staple=True)
 
@@ -55,7 +55,7 @@ class Migration(migrations.Migration):
                 blank=True, db_default="", help_text="For weekly items, e.g. “1 gallon”.", max_length=100
             ),
         ),
-        migrations.RunPython(staple_to_pantry, pantry_to_staple),
+        migrations.RunPython(load_stock, unload_stock),
         migrations.AlterField(
             model_name="ingredient",
             name="is_staple",

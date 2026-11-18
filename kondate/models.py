@@ -186,7 +186,7 @@ class ShoppingCheck(models.Model):
         ]
 
     def __str__(self) -> str:
-        return f"{self.week_start}: {self.ingredient_id} ticked"
+        return f"{self.week_start}: {self.ingredient}"
 
 
 class ShoppingExtra(models.Model):

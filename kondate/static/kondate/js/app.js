@@ -26,12 +26,12 @@
 
   /* Quick-plan sheet (week page) ------------------------------------------ */
   function initPlanner() {
-    var dialog = $("#planner");
+    var dialog = $("[data-planner]");
     if (!dialog || typeof dialog.showModal !== "function") return;
-    var form = $("#planner-form", dialog);
-    var search = $("#planner-search", dialog);
-    var note = $("#planner-note", dialog);
-    var title = $("#planner-title", dialog);
+    var form = $("form", dialog);
+    var search = $("[data-planner-search]", dialog);
+    var note = $("[data-planner-note]", dialog);
+    var title = $("[data-planner-title]", dialog);
     var rows = $$("li[data-search]", dialog);
     var suggestions = $("[data-suggestions]", dialog);
     var noMatch = $("[data-no-match]", dialog);
@@ -44,7 +44,7 @@
     $$("[data-plan-day]").forEach(function (link) {
       link.addEventListener("click", function (event) {
         event.preventDefault();
-        $("#planner-date", dialog).value = link.getAttribute("data-plan-day");
+        $("[data-planner-date]", dialog).value = link.getAttribute("data-plan-day");
         title.textContent = link.getAttribute("data-day-label");
         search.value = "";
         note.value = "";
@@ -79,17 +79,18 @@
 
   /* Shopping list ----------------------------------------------------------- */
   function initShopping() {
-    if (!document.body.classList.contains("shopping-page")) return;
-    var text = $("[data-text]");
-    var hideToggle = $("[data-hide-done]");
+    var root = $("[data-shopping]");
+    if (!root) return;
+    var text = $("[data-text]", root);
+    var hideToggle = $("[data-hide-done]", root);
 
     function refreshCounts() {
-      var counted = $$("li[data-counted]");
-      var left = counted.filter(function (li) { return !li.classList.contains("done"); }).length;
+      var counted = $$("li[data-counted]", root);
+      var left = counted.filter(function (li) { return !li.classList.contains("is-done"); }).length;
       var total = counted.length;
-      var remaining = $("[data-remaining]");
+      var remaining = $("[data-remaining]", root);
       if (remaining) remaining.textContent = left;
-      var bar = $("[data-progress] progress");
+      var bar = $("[data-progress] progress", root);
       if (bar) bar.value = total - left;
     }
 
@@ -98,16 +99,16 @@
     var sent = 0, written = 0;
 
     var pending = new WeakMap();
-    document.addEventListener("submit", function (event) {
+    root.addEventListener("submit", function (event) {
       var form = event.target;
-      if (!form.classList.contains("check")) return;
+      if (!form.hasAttribute("data-tick")) return;
       event.preventDefault();
       var input = $("input[name=checked]", form);
       var button = $("button", form);
       var li = form.closest("li");
       var next = input.value === "1";
       // Optimistic: flip now, roll back (via a full post) if the server says no.
-      li.classList.toggle("done", next);
+      li.classList.toggle("is-done", next);
       button.setAttribute("aria-checked", String(next));
       input.value = next ? "0" : "1";
       refreshCounts();
@@ -134,14 +135,14 @@
 
     if (hideToggle) {
       hideToggle.checked = store.get("kondate.hideDone") === "1";
-      document.body.classList.toggle("hide-done", hideToggle.checked);
+      root.classList.toggle("is-hiding-done", hideToggle.checked);
       hideToggle.addEventListener("change", function () {
-        document.body.classList.toggle("hide-done", hideToggle.checked);
+        root.classList.toggle("is-hiding-done", hideToggle.checked);
         store.set("kondate.hideDone", hideToggle.checked ? "1" : "0");
       });
     }
 
-    var copy = $("[data-copy]");
+    var copy = $("[data-copy]", root);
     if (copy && text) {
       copy.addEventListener("click", function () {
         var label = $("span", copy);
@@ -165,7 +166,7 @@
       });
     }
 
-    var mail = $("[data-mailto]");
+    var mail = $("[data-mailto]", root);
     if (mail && text) {
       mail.addEventListener("click", function () {
         var to = mail.getAttribute("data-email") || "";
@@ -175,7 +176,7 @@
       });
     }
 
-    var share = $("[data-share]");
+    var share = $("[data-share]", root);
     if (share && text && navigator.share) {
       share.hidden = false;
       share.addEventListener("click", function () {
@@ -187,9 +188,9 @@
   /* Live filtering for recipes and ingredients ------------------------------ */
   function initLiveFilters() {
     $$("[data-live-filter]").forEach(function (bar) {
-      var target = $(bar.getAttribute("data-live-filter"));
+      var target = $('[data-filter-target="' + bar.getAttribute("data-live-filter") + '"]');
       if (!target) return;
-      var rows = $$(bar.getAttribute("data-filter-rows") || "[data-search]", target);
+      var rows = $$("[data-search]", target);
       var input = $("input[type=search]", bar);
       var buyRadios = $$("[data-filter-buy]", bar);
       var noMatch = $("[data-no-match]");
@@ -221,11 +222,11 @@
 
   /* Recipe form: add ingredient rows ---------------------------------------- */
   function initRecipeForm() {
-    var add = $("#add-row");
+    var add = $("[data-add-row]");
     if (!add) return;
-    var total = $("#id_items-TOTAL_FORMS");
-    var rows = $("#itemrows");
-    var tpl = $("#itemrow-template");
+    var total = $("#id_items-TOTAL_FORMS"); // named by Django's formset
+    var rows = $("[data-item-rows]");
+    var tpl = $("[data-item-template]");
     add.addEventListener("click", function () {
       var n = parseInt(total.value, 10);
       rows.insertAdjacentHTML("beforeend", tpl.innerHTML.replace(/__prefix__/g, String(n)));

@@ -67,12 +67,12 @@ def _rename(apps, model_name, mapping, merge=None):
         # A recipe whose corrected name is already taken is left as it is.
 
 
-def forwards(apps, schema_editor):
+def fix_spellings(apps, schema_editor):
     _rename(apps, "Recipe", RECIPES)
     _rename(apps, "Ingredient", INGREDIENTS, merge=_merge_ingredient)
 
 
-def backwards(apps, schema_editor):
+def restore_spellings(apps, schema_editor):
     # Restore the old names where nothing was merged; merges aren't undone.
     _rename(apps, "Recipe", {v: k for k, v in RECIPES.items()})
     _rename(apps, "Ingredient", {v: k for k, v in INGREDIENTS.items()})
@@ -81,4 +81,4 @@ def backwards(apps, schema_editor):
 class Migration(migrations.Migration):
     dependencies = [("kondate", "0004_recipe_data")]
 
-    operations = [migrations.RunPython(forwards, backwards)]
+    operations = [migrations.RunPython(fix_spellings, restore_spellings)]

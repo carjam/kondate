@@ -53,13 +53,9 @@ class ShoppingLine:
     checked: bool = False
 
     @property
-    def weekly(self) -> bool:
-        return self.ingredient.is_weekly
-
-    @property
     def amounts(self) -> str:
         """Same-unit amounts are added up; anything else is listed as typed."""
-        raw = [self.ingredient.usual_amount] if self.weekly else []
+        raw = [self.ingredient.usual_amount] if self.ingredient.is_weekly else []
         return combine_amounts(raw + [n.amount for n in self.needs])
 
 
@@ -106,7 +102,7 @@ class ShoppingList:
 
     @property
     def regulars(self) -> list[Ingredient]:
-        lines = [ln for s in self.sections for ln in s.lines if ln.weekly]
+        lines = [ln for s in self.sections for ln in s.lines if ln.ingredient.is_weekly]
         return sorted((ln.ingredient for ln in lines), key=lambda i: i.name.lower())
 
     @property

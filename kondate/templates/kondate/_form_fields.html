@@ -1,9 +1,21 @@
+{# Every form renders through here. Radio choices become a segmented control. #}
 {% if form.non_field_errors %}<div class="formerror">{{ form.non_field_errors|join:" " }}</div>{% endif %}
 {% for field in form %}
+{% if field.widget_type == "radioselect" %}
+<fieldset class="field{% if field.errors %} has-error{% endif %}">
+  <legend>{{ field.label }}</legend>
+  <div class="segmented">
+    {% for radio in field %}<label>{{ radio.tag }}<span>{{ radio.choice_label }}</span></label>{% endfor %}
+  </div>
+  {% if field.help_text %}<small class="muted">{{ field.help_text }}</small>{% endif %}
+  {% for error in field.errors %}<small class="error">{{ error }}</small>{% endfor %}
+</fieldset>
+{% else %}
 <div class="field{% if field.errors %} has-error{% endif %}">
   {% if field.label %}<label for="{{ field.id_for_label }}">{{ field.label }}</label>{% endif %}
   {{ field }}
   {% if field.help_text %}<small class="muted">{{ field.help_text }}</small>{% endif %}
   {% for error in field.errors %}<small class="error">{{ error }}</small>{% endfor %}
 </div>
+{% endif %}
 {% endfor %}

@@ -10,7 +10,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import capfirst
-from django.views.decorators.http import require_safe, require_POST
+from django.views.decorators.http import require_POST, require_safe
 
 from .forms import (
     IngredientFormSet,
@@ -19,7 +19,14 @@ from .forms import (
     RecipeItemFormSet,
     ShoppingExtraForm,
 )
-from .models import Ingredient, Meal, Recipe, RecipeIngredient, ShoppingCheck, ShoppingExtra
+from .models import (
+    Ingredient,
+    Meal,
+    Recipe,
+    RecipeIngredient,
+    ShoppingCheck,
+    ShoppingExtra,
+)
 from .planning import (
     build_shopping_list,
     current_week_start,
@@ -43,8 +50,12 @@ def _week_of(day: str | None) -> dt.date:
     return week_start_for(_parse_day(day)) if day else current_week_start()
 
 
+def _to_week(start: dt.date):
+    return redirect("kondate:week_of", day=start.isoformat())
+
+
 def _to_shopping(start: dt.date, anchor: str = ""):
-    url = reverse("kondate:shopping_week", kwargs={"day": start.isoformat()})
+    url = reverse("kondate:shopping_of", kwargs={"day": start.isoformat()})
     return redirect(url + (f"#{anchor}" if anchor else ""))
 
 
@@ -112,7 +123,7 @@ def meal_edit(request, pk: int | None = None):
             meal = form.save()
             verb = "Updated" if pk else "Planned"
             messages.success(request, f"{verb} {meal.title} for {meal.date:%A}.")
-            return redirect("kondate:week_of", day=week_start_for(meal.date).isoformat())
+            return _to_week(week_start_for(meal.date))
     else:
         initial = {}
         if meal is None:
@@ -135,7 +146,7 @@ def meal_delete(request, pk: int):
     week_of = week_start_for(meal.date)
     meal.delete()
     messages.success(request, f"Removed {meal.title} from {meal.date:%A}.")
-    return redirect("kondate:week_of", day=week_of.isoformat())
+    return _to_week(week_of)
 
 
 @require_POST
@@ -155,7 +166,7 @@ def week_copy_previous(request, day: str):
             ]
             Meal.objects.bulk_create(copies)
             messages.success(request, f"Copied {len(copies)} meals from last week.")
-    return redirect("kondate:week_of", day=start.isoformat())
+    return _to_week(start)
 
 
 # --- Recipes ----------------------------------------------------------------
@@ -253,7 +264,7 @@ def ingredient_list(request):
         formset = IngredientFormSet(request.POST, queryset=queryset)
         if formset.is_valid():
             formset.save()
-            messages.success(request, "Ingredients updated.")
+            messages.success(request, "Saved ingredients.")
             return redirect("kondate:ingredient_list")
     else:
         formset = IngredientFormSet(queryset=queryset)
@@ -263,6 +274,16 @@ def ingredient_list(request):
         "buy": request.GET.get("buy", ""),
     }
     return render(request, "kondate/ingredient_list.html", context)
+
+
+@require_POST
+def ingredient_stop_weekly(request, pk: int):
+    ingredient = get_object_or_404(Ingredient, pk=pk)
+    ingredient.stock = Ingredient.Stock.AS_NEEDED
+    ingredient.save(update_fields=["stock"])
+    messages.success(request, f"{ingredient.name} is no longer a weekly regular.")
+    return _to_shopping(_week_of(request.POST.get("day")))
+
 
 
 # --- Shopping list ----------------------------------------------------------
@@ -282,7 +303,7 @@ def shopping(request, day: str | None = None):
     return render(request, "kondate/shopping.html", context)
 
 
-def _back_to_list(request, start: dt.date, checked: bool):
+def _tick_response(request, start: dt.date, checked: bool):
     """JSON for the page's fetch (with the refreshed copy-paste text, so it
     needs no second request), or a redirect for a plain form post."""
     if _wants_json(request):
@@ -292,16 +313,16 @@ def _back_to_list(request, start: dt.date, checked: bool):
 
 
 @require_POST
-def shopping_check(request, day: str, ingredient_id: int):
+def shopping_check(request, day: str, pk: int):
     """Set (not toggle) the checked state, so two phones can't flip-flop it."""
     start = _week_of(day)
-    ingredient = get_object_or_404(Ingredient, pk=ingredient_id)
+    ingredient = get_object_or_404(Ingredient, pk=pk)
     checked = request.POST.get("checked") == "1"
     if checked:
         ShoppingCheck.objects.get_or_create(week_start=start, ingredient=ingredient)
     else:
         ShoppingCheck.objects.filter(week_start=start, ingredient=ingredient).delete()
-    return _back_to_list(request, start, checked)
+    return _tick_response(request, start, checked)
 
 
 @require_POST
@@ -328,14 +349,14 @@ def shopping_new_trip(request, day: str):
 
 
 @require_POST
-def shopping_extra_add(request, day: str):
+def shopping_extra_new(request, day: str):
     start = _week_of(day)
     form = ShoppingExtraForm(request.POST)
     if not form.is_valid():
         messages.error(request, "Item name can't be empty.")
     elif form.cleaned_data["every_week"]:
         ingredient = _ingredient_for(form.cleaned_data["name"])
-        if ingredient.stock != Ingredient.Stock.WEEKLY:
+        if not ingredient.is_weekly:
             ingredient.stock = Ingredient.Stock.WEEKLY
             ingredient.save(update_fields=["stock"])
         messages.success(request, f"{ingredient.name} is now on the list every week.")
@@ -347,20 +368,11 @@ def shopping_extra_add(request, day: str):
 
 
 @require_POST
-def ingredient_stop_weekly(request, pk: int):
-    ingredient = get_object_or_404(Ingredient, pk=pk)
-    ingredient.stock = Ingredient.Stock.AS_NEEDED
-    ingredient.save(update_fields=["stock"])
-    messages.success(request, f"{ingredient.name} is no longer a weekly regular.")
-    return _to_shopping(_week_of(request.POST.get("day")))
-
-
-@require_POST
 def shopping_extra_check(request, pk: int):
     extra = get_object_or_404(ShoppingExtra, pk=pk)
     extra.checked = request.POST.get("checked") == "1"
     extra.save(update_fields=["checked"])
-    return _back_to_list(request, extra.week_start, extra.checked)
+    return _tick_response(request, extra.week_start, extra.checked)
 
 
 @require_POST

@@ -9,7 +9,7 @@
   </div>
 </div>
 
-<div class="toolbar" data-live-filter="#ingredient-table" data-filter-rows="tr[data-search]">
+<div class="toolbar" data-live-filter="ingredients">
   <label class="searchfield">
     <svg aria-hidden="true"><use href="#i-search"/></svg>
     <input type="search" placeholder="Find an ingredient" aria-label="Find an ingredient" autocomplete="off">
@@ -26,7 +26,7 @@
   {% csrf_token %}
   {{ formset.management_form }}
   <div class="tablewrap">
-  <table class="table" id="ingredient-table">
+  <table class="table" data-filter-target="ingredients">
     <thead><tr><th>Ingredient</th><th>Aisle</th><th>Buy</th><th>Usual amount</th></tr></thead>
     <tbody>
     {% for form in formset %}

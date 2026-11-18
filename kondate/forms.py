@@ -1,5 +1,6 @@
 from django import forms
 from django.db.models.functions import Lower
+from django.utils.text import capfirst
 
 from .models import Ingredient, Meal, Recipe, ShoppingExtra
 
@@ -18,14 +19,15 @@ class MealForm(forms.ModelForm):
             "slot": forms.RadioSelect,
             "note": forms.TextInput(attrs={"placeholder": "e.g. double batch, or “eat out”"}),
         }
-        labels = {"note": "Note"}
-        help_texts = {"note": 'Optional with a recipe; on its own for things like "leftovers" or "eat out".'}
+        labels = {"date": "Day", "slot": "Meal", "note": "Note"}
+        help_texts = {"note": "Optional with a recipe; on its own for things like “leftovers” or “eat out”."}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["recipe"].queryset = Recipe.objects.order_by(Lower("name"))
         self.fields["recipe"].required = False
         self.fields["recipe"].empty_label = "None, just a note"
+        self.fields["recipe"].label_from_instance = lambda recipe: capfirst(recipe.name)
 
     def clean(self):
         cleaned = super().clean()

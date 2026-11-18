@@ -2,21 +2,43 @@
 {% block title %}{% if meal %}Edit meal{% else %}Plan a meal{% endif %}{% endblock %}
 {% block content %}
 <div class="narrow">
-  <h1>{% if meal %}Edit meal{% else %}Plan a meal{% endif %}</h1>
+  <a class="backlink" href="{% if meal %}{% url 'kondate:week_of' meal.date|date:'Y-m-d' %}{% else %}{% url 'kondate:week' %}{% endif %}"><svg aria-hidden="true"><use href="#i-left"/></svg>Week</a>
+  <h1>{% if meal %}Edit {{ meal.title|capfirst }}{% else %}Plan a meal{% endif %}</h1>
   <form method="post" class="card form">
     {% csrf_token %}
-    {% include 'kondate/_form_fields.html' %}
+    {% if form.non_field_errors %}<div class="formerror">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+    <div class="field">
+      <label for="{{ form.date.id_for_label }}">Day</label>
+      {{ form.date }}
+      {% for error in form.date.errors %}<small class="error">{{ error }}</small>{% endfor %}
+    </div>
+    <fieldset class="field">
+      <legend>Meal</legend>
+      <div class="segmented">
+        {% for radio in form.slot %}<label>{{ radio.tag }}<span>{{ radio.choice_label }}</span></label>{% endfor %}
+      </div>
+    </fieldset>
+    <div class="field">
+      <label for="{{ form.recipe.id_for_label }}">Recipe</label>
+      {{ form.recipe }}
+    </div>
+    <div class="field">
+      <label for="{{ form.note.id_for_label }}">Note</label>
+      {{ form.note }}
+      <small class="muted">{{ form.note.help_text }}</small>
+    </div>
     <div class="actions">
-      <button class="btn primary" type="submit">Save</button>
-      <a class="btn" href="{% if meal %}{% url 'kondate:week_of' meal.date|date:'Y-m-d' %}{% else %}{% url 'kondate:week' %}{% endif %}">Cancel</a>
+      <button class="btn primary" type="submit">{% if meal %}Save{% else %}Add to plan{% endif %}</button>
+      <a class="btn ghost" href="{% if meal %}{% url 'kondate:week_of' meal.date|date:'Y-m-d' %}{% else %}{% url 'kondate:week' %}{% endif %}">Cancel</a>
     </div>
   </form>
   {% if meal %}
-  <form method="post" action="{% url 'kondate:meal_delete' meal.pk %}" class="danger-zone">
-    {% csrf_token %}
-    {% if meal.recipe %}<a href="{{ meal.recipe.get_absolute_url }}">View recipe</a> · {% endif %}
-    <button class="linklike danger" type="submit">Remove from plan</button>
-  </form>
+  <div class="danger-zone">
+    {% if meal.recipe %}<a href="{{ meal.recipe.get_absolute_url }}">View recipe</a>{% endif %}
+    <form method="post" action="{% url 'kondate:meal_delete' meal.pk %}">
+      {% csrf_token %}<button class="linkbtn danger" type="submit">Remove from plan</button>
+    </form>
+  </div>
   {% endif %}
 </div>
 {% endblock %}

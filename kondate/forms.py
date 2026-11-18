@@ -10,6 +10,8 @@ class MealForm(forms.ModelForm):
         fields = ["date", "slot", "recipe", "note"]
         widgets = {
             "date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+            "slot": forms.RadioSelect,
+            "note": forms.TextInput(attrs={"placeholder": "e.g. double batch, or “eat out”"}),
         }
         labels = {"note": "Note"}
         help_texts = {"note": 'Optional with a recipe; on its own for things like "leftovers" or "eat out".'}
@@ -18,6 +20,7 @@ class MealForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["recipe"].queryset = Recipe.objects.order_by(Lower("name"))
         self.fields["recipe"].required = False
+        self.fields["recipe"].empty_label = "None, just a note"
 
     def clean(self):
         cleaned = super().clean()
@@ -81,16 +84,26 @@ RecipeItemFormSet = forms.formset_factory(
 class IngredientForm(forms.ModelForm):
     class Meta:
         model = Ingredient
-        fields = ["category", "is_staple"]
-        labels = {"is_staple": "Staple"}
+        fields = ["category", "stock", "usual_amount"]
+        labels = {"category": "Store section", "stock": "Buy", "usual_amount": "Usual amount"}
+        widgets = {"usual_amount": forms.TextInput(attrs={"placeholder": "e.g. 1 gallon"})}
 
 
 IngredientFormSet = forms.modelformset_factory(Ingredient, form=IngredientForm, extra=0, edit_only=True)
 
 
 class ShoppingExtraForm(forms.ModelForm):
+    every_week = forms.BooleanField(required=False, label="Every week")
+
     class Meta:
         model = ShoppingExtra
         fields = ["name"]
-        widgets = {"name": forms.TextInput(attrs={"placeholder": "Add an item (coffee, paper towels…)"})}
-        labels = {"name": ""}
+        widgets = {
+            "name": forms.TextInput(
+                attrs={"placeholder": "Add an item: coffee, paper towels…", "autocomplete": "off"}
+            )
+        }
+        labels = {"name": "Item"}
+
+    def clean_name(self):
+        return " ".join(self.cleaned_data["name"].split())

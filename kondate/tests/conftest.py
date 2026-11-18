@@ -35,10 +35,10 @@ def make_recipe(db):
         recipe = Recipe.objects.create(name=name, **kwargs)
         for ingredient_name, amount, *rest in items:
             category = rest[0] if rest else Ingredient.Category.OTHER
-            staple = rest[1] if len(rest) > 1 else False
+            stock = rest[1] if len(rest) > 1 else Ingredient.Stock.AS_NEEDED
             ingredient, _ = Ingredient.objects.get_or_create(
                 name__iexact=ingredient_name,
-                defaults={"name": ingredient_name, "category": category, "is_staple": staple},
+                defaults={"name": ingredient_name, "category": category, "stock": stock},
             )
             RecipeIngredient.objects.create(recipe=recipe, ingredient=ingredient, amount=amount)
         return recipe

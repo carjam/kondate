@@ -18,9 +18,9 @@ class RecipeAdmin(admin.ModelAdmin):
 
 @admin.register(Ingredient)
 class IngredientAdmin(admin.ModelAdmin):
-    list_display = ["name", "category", "is_staple"]
-    list_editable = ["category", "is_staple"]
-    list_filter = ["category", "is_staple"]
+    list_display = ["name", "category", "stock", "usual_amount"]
+    list_editable = ["category", "stock", "usual_amount"]
+    list_filter = ["category", "stock"]
     search_fields = ["name"]
 
 

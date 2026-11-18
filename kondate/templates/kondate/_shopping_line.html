@@ -1,11 +1,15 @@
-<li class="{% if line.checked %}done{% endif %}">
+<li class="{% if line.checked %}done{% endif %}"{% if counted %} data-counted{% endif %}>
   <form method="post" action="{% url 'kondate:shopping_check' week_start|date:'Y-m-d' line.ingredient.pk %}" class="check">
     {% csrf_token %}
     <input type="hidden" name="checked" value="{% if line.checked %}0{% else %}1{% endif %}">
     <button type="submit" class="tick" role="checkbox" aria-checked="{% if line.checked %}true{% else %}false{% endif %}">
-      <span class="box"></span>
-      <span class="what">{{ line.ingredient.name }}{% if line.amounts %} <span class="amt">{{ line.amounts }}</span>{% endif %}</span>
-      <span class="for muted small">{% for need in line.needs %}{{ need.recipe }} ({{ need.date|date:"D" }}){% if not forloop.last %}, {% endif %}{% endfor %}</span>
+      <span class="box"><svg><use href="#i-check"/></svg></span>
+      <span class="what">{{ line.ingredient.name }}</span>
+      {% if line.amounts %}<span class="amt">{{ line.amounts }}</span>{% endif %}
+      <span class="for">
+        {% if line.weekly %}<span class="tag">Every week</span>{% endif %}
+        {% for need in line.needs %}{{ need.recipe|capfirst }} <span class="dim">{{ need.date|date:"D" }}</span>{% if not forloop.last %} · {% endif %}{% endfor %}
+      </span>
     </button>
   </form>
 </li>

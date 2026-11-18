@@ -2,28 +2,42 @@
 {% block title %}Recipes{% endblock %}
 {% block content %}
 <div class="pagehead">
-  <h1>Recipes</h1>
-  <a class="btn primary" href="{% url 'kondate:recipe_new' %}">New recipe</a>
+  <div>
+    <p class="eyebrow">Recipes</p>
+    <h1>What we cook</h1>
+    <p class="muted">{{ recipes|length }} recipe{{ recipes|length|pluralize }}{% if q %} matching “{{ q }}”{% endif %}</p>
+  </div>
+  <a class="btn primary" href="{% url 'kondate:recipe_new' %}"><svg aria-hidden="true"><use href="#i-plus"/></svg>New recipe</a>
 </div>
-<form method="get" class="searchbar">
-  <input type="search" name="q" value="{{ q }}" placeholder="Search recipes or ingredients" aria-label="Search">
-  <select name="sort" aria-label="Sort" onchange="this.form.submit()">
-    <option value="name" {% if sort == 'name' %}selected{% endif %}>A–Z</option>
-    <option value="stale" {% if sort == 'stale' %}selected{% endif %}>Not had in a while</option>
-  </select>
-  <button class="btn" type="submit">Search</button>
+
+<form method="get" class="toolbar" data-live-filter="#recipe-grid">
+  <label class="searchfield">
+    <svg aria-hidden="true"><use href="#i-search"/></svg>
+    <input type="search" name="q" value="{{ q }}" placeholder="Search by name or ingredient" aria-label="Search recipes" autocomplete="off">
+  </label>
+  <div class="segmented compact" role="radiogroup" aria-label="Sort">
+    <label><input type="radio" name="sort" value="name" {% if sort == 'name' %}checked{% endif %} data-autosubmit><span>A–Z</span></label>
+    <label><input type="radio" name="sort" value="stale" {% if sort == 'stale' %}checked{% endif %} data-autosubmit><span>Not had in a while</span></label>
+  </div>
+  <noscript><button class="btn" type="submit">Search</button></noscript>
 </form>
-<ul class="list card">
+
+<ul class="cardgrid" id="recipe-grid">
   {% for recipe in recipes %}
-  <li>
-    <a href="{{ recipe.get_absolute_url }}">{{ recipe.name }}</a>
-    <span class="muted small">
-      {{ recipe.item_count }} ingredient{{ recipe.item_count|pluralize }}
-      · {% if recipe.last_planned %}last planned {{ recipe.last_planned|date:"M j, Y" }}{% else %}never planned{% endif %}
-    </span>
+  <li class="card recipecard" data-search="{{ recipe.name|lower }} {% for i in recipe.ingredients.all %}{{ i.name|lower }} {% endfor %}">
+    <a class="recipecard-main" href="{{ recipe.get_absolute_url }}">
+      <span class="recipecard-name">{{ recipe.name|capfirst }}</span>
+      <span class="muted small">
+        {{ recipe.item_count }} ingredient{{ recipe.item_count|pluralize }}
+        · {% if recipe.last_planned %}{% if recipe.last_planned >= today %}planned {{ recipe.last_planned|date:"M j" }}{% else %}had {{ recipe.last_planned|timesince:today }} ago{% endif %}{% else %}not planned yet{% endif %}
+      </span>
+      {% if recipe.source %}<span class="source small"><svg aria-hidden="true"><use href="#i-link"/></svg>{{ recipe.source }}</span>{% endif %}
+    </a>
+    <a class="btn small" href="{% url 'kondate:meal_new' %}?recipe={{ recipe.pk }}" aria-label="Plan {{ recipe.name }}">Plan</a>
   </li>
-  {% empty %}
-  <li class="muted">No recipes match{% if q %} “{{ q }}”{% endif %}.</li>
   {% endfor %}
 </ul>
+<p class="empty-state card muted" data-no-match {% if recipes %}hidden{% endif %}>
+  No recipes match. <a href="{% url 'kondate:recipe_new' %}">Add a new one</a>?
+</p>
 {% endblock %}

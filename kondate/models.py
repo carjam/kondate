@@ -4,6 +4,8 @@ per-week shopping list state derived from it.
 Data is shared by every signed-in account (one household per deployment).
 """
 
+from urllib.parse import urlsplit
+
 from django.db import models
 from django.db.models import Q
 from django.db.models.functions import Lower
@@ -23,11 +25,26 @@ class Ingredient(models.Model):
         FROZEN = "frozen", "Frozen"
         OTHER = "other", "Other"
 
+    class Stock(models.TextChoices):
+        """How the household buys it, which decides where it lands on the list."""
+
+        AS_NEEDED = "as_needed", "When a recipe needs it"
+        WEEKLY = "weekly", "Every week"
+        PANTRY = "pantry", "Usually have it"
+
     name = models.CharField(max_length=200)
     category = models.CharField(max_length=20, choices=Category.choices, default=Category.OTHER)
-    is_staple = models.BooleanField(
-        default=False,
-        help_text="Usually on hand (salt, oil...). Listed separately on the shopping list.",
+    # db_default keeps inserts from the previous release working while a deploy
+    # overlaps old and new instances (see migration 0003).
+    stock = models.CharField(
+        max_length=10,
+        choices=Stock.choices,
+        default=Stock.AS_NEEDED,
+        db_default=Stock.AS_NEEDED,
+        help_text="Every week: always on the list. Usually have it: listed under “check the pantry”.",
+    )
+    usual_amount = models.CharField(
+        max_length=100, blank=True, db_default="", help_text="For weekly items, e.g. “1 gallon”."
     )
 
     class Meta:
@@ -38,6 +55,14 @@ class Ingredient(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+    @property
+    def is_weekly(self) -> bool:
+        return self.stock == self.Stock.WEEKLY
+
+    @property
+    def is_pantry(self) -> bool:
+        return self.stock == self.Stock.PANTRY
 
     @classmethod
     def category_rank(cls, category: str) -> int:
@@ -61,6 +86,12 @@ class Recipe(models.Model):
 
     def get_absolute_url(self) -> str:
         return reverse("kondate:recipe_detail", args=[self.pk])
+
+    @property
+    def source(self) -> str:
+        """The link's site, e.g. "tasteofhome.com"."""
+        host = urlsplit(self.url).hostname or ""
+        return host.removeprefix("www.")
 
 
 class RecipeIngredient(models.Model):

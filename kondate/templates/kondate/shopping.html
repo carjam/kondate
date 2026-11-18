@@ -1,98 +1,146 @@
 {% extends 'kondate/base.html' %}
 {% block title %}Shopping · {{ week_start|date:"M j" }}{% endblock %}
+{% block bodyclass %}shopping-page{% endblock %}
 {% block content %}
 <div class="pagehead">
   <div>
-    <h1>Shopping list</h1>
-    <p class="muted">For meals {{ week_start|date:"M j" }} – {{ week_end|date:"M j" }}
+    <p class="eyebrow">Shopping list</p>
+    <h1>{{ week_start|date:"M j" }} – {% if week_start.month == week_end.month %}{{ week_end|date:"j" }}{% else %}{{ week_end|date:"M j" }}{% endif %}</h1>
+    <p class="muted">
+      {% with n=shopping.meals|length %}For {{ n }} planned meal{{ n|pluralize }}{% endwith %}
       · <a href="{% url 'kondate:week_of' week_start|date:'Y-m-d' %}">see plan</a>
-      · <span id="remaining">{{ shopping.remaining }}</span> left</p>
+    </p>
   </div>
-  <div class="weeknav">
-    <a class="btn" href="{% url 'kondate:shopping_week' prev_week|date:'Y-m-d' %}" aria-label="Previous week">‹</a>
-    {% if week_start != this_week %}<a class="btn" href="{% url 'kondate:shopping' %}">This week</a>{% endif %}
-    <a class="btn" href="{% url 'kondate:shopping_week' next_week|date:'Y-m-d' %}" aria-label="Next week">›</a>
-  </div>
+  <nav class="weeknav" aria-label="Weeks">
+    <a class="iconbtn" href="{% url 'kondate:shopping_week' prev_week|date:'Y-m-d' %}" aria-label="Previous week"><svg><use href="#i-left"/></svg></a>
+    <a class="pill{% if week_start == this_week %} is-current{% endif %}" href="{% url 'kondate:shopping' %}">This week</a>
+    <a class="iconbtn" href="{% url 'kondate:shopping_week' next_week|date:'Y-m-d' %}" aria-label="Next week"><svg><use href="#i-right"/></svg></a>
+  </nav>
 </div>
 
-{% if not shopping.sections and not shopping.staples %}
-  <p class="card muted">Nothing to buy yet — <a href="{% url 'kondate:week_of' week_start|date:'Y-m-d' %}">plan some meals</a> for this week.</p>
-{% endif %}
+<div class="shopgrid">
+  <div class="shopmain">
+    {% if shopping.total %}
+    <div class="progress card" data-progress>
+      <div class="progress-text">
+        <strong><span data-remaining>{{ shopping.remaining }}</span> left</strong>
+        <span class="muted">of <span data-total>{{ shopping.total }}</span></span>
+      </div>
+      <div class="bar" role="progressbar" aria-label="Items ticked off" aria-valuemin="0" aria-valuemax="{{ shopping.total }}" aria-valuenow="{{ shopping.done }}">
+        <span style="width: {% widthratio shopping.done shopping.total 100 %}%"></span>
+      </div>
+      <label class="toggle small"><input type="checkbox" data-hide-done> Hide ticked</label>
+    </div>
+    {% endif %}
 
-{% for section in shopping.sections %}
-<section class="shopsection">
-  <h2>{{ section.label }}</h2>
-  <ul class="checklist card">
-    {% for line in section.lines %}{% include 'kondate/_shopping_line.html' %}{% endfor %}
-  </ul>
-</section>
-{% endfor %}
+    {% if shopping.is_empty %}
+    <div class="empty-state card">
+      <svg aria-hidden="true"><use href="#i-basket"/></svg>
+      <h2>Nothing to buy yet</h2>
+      <p class="muted"><a href="{% url 'kondate:week_of' week_start|date:'Y-m-d' %}">Plan some meals</a> and their ingredients show up here.
+        Add things you buy every trip (milk, eggs, bread) below, with <b>Every week</b> ticked.</p>
+    </div>
+    {% endif %}
 
-{% if shopping.staples %}
-<details class="shopsection staples">
-  <summary><h2>Probably have <span class="muted small">({{ shopping.staples|length }} staples — check the pantry)</span></h2></summary>
-  <ul class="checklist card">
-    {% for line in shopping.staples %}{% include 'kondate/_shopping_line.html' %}{% endfor %}
-  </ul>
-</details>
-{% endif %}
-
-<section class="shopsection" id="extras">
-  <h2>Extras</h2>
-  <ul class="checklist card">
-    {% for extra in extras %}
-    <li class="{% if extra.checked %}done{% endif %}">
-      <form method="post" action="{% url 'kondate:shopping_extra_check' extra.pk %}" class="check">
-        {% csrf_token %}
-        <input type="hidden" name="checked" value="{% if extra.checked %}0{% else %}1{% endif %}">
-        <button type="submit" class="tick" role="checkbox" aria-checked="{% if extra.checked %}true{% else %}false{% endif %}">
-          <span class="box"></span><span class="what">{{ extra.name }}</span>
-        </button>
-      </form>
-      <form method="post" action="{% url 'kondate:shopping_extra_delete' extra.pk %}" class="inline">
-        {% csrf_token %}<button class="linklike muted" type="submit" aria-label="Delete {{ extra.name }}">✕</button>
-      </form>
-    </li>
+    {% for section in shopping.sections %}
+    <section class="shopsection">
+      <h2 class="sectionlabel">{{ section.label }}</h2>
+      <ul class="checklist card">
+        {% for line in section.lines %}{% include 'kondate/_shopping_line.html' with counted=True %}{% endfor %}
+      </ul>
+    </section>
     {% endfor %}
-    <li>
-      <form method="post" action="{% url 'kondate:shopping_extra_add' week_start|date:'Y-m-d' %}" class="addextra">
-        {% csrf_token %}{{ extra_form.name }}<button class="btn" type="submit">Add</button>
+
+    <section class="shopsection" id="extras">
+      <h2 class="sectionlabel">Extras</h2>
+      <ul class="checklist card">
+        {% for extra in shopping.extras %}
+        <li class="{% if extra.checked %}done{% endif %}" data-counted>
+          <form method="post" action="{% url 'kondate:shopping_extra_check' extra.pk %}" class="check">
+            {% csrf_token %}
+            <input type="hidden" name="checked" value="{% if extra.checked %}0{% else %}1{% endif %}">
+            <button type="submit" class="tick" role="checkbox" aria-checked="{% if extra.checked %}true{% else %}false{% endif %}">
+              <span class="box"><svg><use href="#i-check"/></svg></span>
+              <span class="what">{{ extra.name }}</span>
+            </button>
+          </form>
+          <form method="post" action="{% url 'kondate:shopping_extra_delete' extra.pk %}">
+            {% csrf_token %}<button class="iconbtn quiet" type="submit" aria-label="Delete {{ extra.name }}"><svg><use href="#i-x"/></svg></button>
+          </form>
+        </li>
+        {% endfor %}
+        <li class="addrow">
+          <form method="post" action="{% url 'kondate:shopping_extra_add' week_start|date:'Y-m-d' %}" class="addextra">
+            {% csrf_token %}
+            <label class="sr" for="{{ extra_form.name.id_for_label }}">Item</label>
+            {{ extra_form.name }}
+            <label class="toggle small" title="Put it on the list every week">{{ extra_form.every_week }} Every week</label>
+            <button class="btn" type="submit"><svg aria-hidden="true"><use href="#i-plus"/></svg>Add</button>
+          </form>
+        </li>
+      </ul>
+    </section>
+
+    {% if shopping.pantry %}
+    <details class="shopsection pantry">
+      <summary>
+        <h2 class="sectionlabel">Check the pantry first</h2>
+        <span class="muted small">{{ shopping.pantry|length }} thing{{ shopping.pantry|length|pluralize }} you usually have</span>
+      </summary>
+      <ul class="checklist card">
+        {% for line in shopping.pantry %}{% include 'kondate/_shopping_line.html' %}{% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+  </div>
+
+  <aside class="shopside">
+    <section class="card sendcard">
+      <h2>Take it with you</h2>
+      <p class="muted small">What's still left, grouped by aisle, ready to paste into an email or notes.</p>
+      <div class="sendactions">
+        <button type="button" class="btn primary" data-copy><svg aria-hidden="true"><use href="#i-copy"/></svg><span>Copy list</span></button>
+        <a class="btn" data-mailto data-email="{{ email }}"
+           href="mailto:{{ email|urlencode }}?subject={{ 'Shopping list'|urlencode }}&amp;body={{ shopping_text|urlencode }}">
+          <svg aria-hidden="true"><use href="#i-mail"/></svg>Email</a>
+        <button type="button" class="btn" data-share hidden><svg aria-hidden="true"><use href="#i-share"/></svg>Share</button>
+      </div>
+      <details class="plaintext">
+        <summary class="small">Show as text</summary>
+        <textarea readonly rows="12" data-text data-src="{% url 'kondate:shopping_text' week_start|date:'Y-m-d' %}" aria-label="Shopping list as text">{{ shopping_text }}</textarea>
+      </details>
+    </section>
+
+    <section class="card tripcard">
+      <h2>Shopping again this week?</h2>
+      <p class="muted small">Puts your weekly regulars back on the list and clears extras you've bought. Recipe ingredients you already bought stay ticked.</p>
+      <form method="post" action="{% url 'kondate:shopping_new_trip' week_start|date:'Y-m-d' %}">
+        {% csrf_token %}<button class="btn" type="submit"><svg aria-hidden="true"><use href="#i-repeat"/></svg>Start another trip</button>
       </form>
-    </li>
-  </ul>
-</section>
+      <form method="post" action="{% url 'kondate:shopping_reset' week_start|date:'Y-m-d' %}">
+        {% csrf_token %}<button class="linkbtn small" type="submit">Uncheck everything</button>
+      </form>
+    </section>
 
-<form method="post" action="{% url 'kondate:shopping_reset' week_start|date:'Y-m-d' %}" class="center">
-  {% csrf_token %}<button class="linklike muted" type="submit">Uncheck everything</button>
-</form>
-{% endblock %}
-
-{% block script %}
-<script>
-  // Progressive enhancement: tick items without a page reload.
-  // Without JS each tick is a normal form POST + redirect.
-  document.addEventListener("submit", function (event) {
-    var form = event.target;
-    if (!form.classList.contains("check")) return;
-    event.preventDefault();
-    var input = form.querySelector("input[name=checked]");
-    var button = form.querySelector("button");
-    var li = form.closest("li");
-    fetch(form.action, {
-      method: "POST",
-      body: new FormData(form),
-      headers: { "Accept": "application/json" },
-      credentials: "same-origin"
-    }).then(function (r) {
-      if (!r.ok) throw new Error(r.status);
-      return r.json();
-    }).then(function (data) {
-      li.classList.toggle("done", data.checked);
-      button.setAttribute("aria-checked", String(data.checked));
-      input.value = data.checked ? "0" : "1";
-      var left = document.querySelectorAll(".shopsection:not(.staples):not(#extras) li:not(.done)").length;
-      document.getElementById("remaining").textContent = left;
-    }).catch(function () { form.submit(); });
-  });
-</script>
+    {% with regulars=shopping.regulars %}
+    {% if regulars %}
+    <details class="card regulars">
+      <summary><h2>Every week</h2> <span class="muted small">{{ regulars|length }} regular{{ regulars|length|pluralize }}</span></summary>
+      <ul class="plainlist">
+        {% for ingredient in regulars %}
+        <li>
+          <span>{{ ingredient.name }}{% if ingredient.usual_amount %} <span class="muted">{{ ingredient.usual_amount }}</span>{% endif %}</span>
+          <form method="post" action="{% url 'kondate:ingredient_stop_weekly' ingredient.pk %}">
+            {% csrf_token %}<input type="hidden" name="day" value="{{ week_start|date:'Y-m-d' }}">
+            <button class="linkbtn small" type="submit" aria-label="Stop buying {{ ingredient.name }} every week">Remove</button>
+          </form>
+        </li>
+        {% endfor %}
+      </ul>
+      <p class="small"><a href="{% url 'kondate:ingredient_list' %}?buy=weekly">Set usual amounts and aisles</a></p>
+    </details>
+    {% endif %}
+    {% endwith %}
+  </aside>
+</div>
 {% endblock %}

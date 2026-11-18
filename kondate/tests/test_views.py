@@ -67,8 +67,8 @@ def test_week_page_bad_date_is_404(client_in):
 def test_week_page_query_count(client_in, make_recipe, plan, django_assert_max_num_queries):
     for i in range(7):
         plan(make_recipe(f"W{i}", [(f"WI{i}", "1")]), MONDAY + dt.timedelta(days=i))
-    # session + user + meals JOIN recipe + recipe items prefetch
-    with django_assert_max_num_queries(4):
+    # session, user, meals JOIN recipe, recipe items, picker recipes, picker ingredients
+    with django_assert_max_num_queries(6):
         assert client_in.get(reverse("kondate:week_of", args=[DAY])).status_code == 200
 
 
@@ -225,12 +225,13 @@ def test_ingredient_bulk_edit(client_in):
     for i, form in enumerate(formset.forms):
         data[f"form-{i}-id"] = form.instance.pk
         data[f"form-{i}-category"] = form.instance.category
-        if form.instance.is_staple:
-            data[f"form-{i}-is_staple"] = "on"
+        data[f"form-{i}-stock"] = form.instance.stock
+        data[f"form-{i}-usual_amount"] = form.instance.usual_amount
         if form.instance.name == "zucchini":
             target = i
             data[f"form-{i}-category"] = Ingredient.Category.FROZEN
-            data[f"form-{i}-is_staple"] = "on"
+            data[f"form-{i}-stock"] = Ingredient.Stock.WEEKLY
+            data[f"form-{i}-usual_amount"] = "3"
     assert target is not None
     sections = [f.instance.category for f in formset.forms]
     ranks = [Ingredient.Category.values.index(c) for c in sections]
@@ -238,7 +239,8 @@ def test_ingredient_bulk_edit(client_in):
     response = client_in.post(reverse("kondate:ingredient_list"), data)
     assert response.status_code == 302
     zucchini = Ingredient.objects.get(name="zucchini")
-    assert zucchini.category == Ingredient.Category.FROZEN and zucchini.is_staple
+    assert zucchini.category == Ingredient.Category.FROZEN
+    assert zucchini.stock == Ingredient.Stock.WEEKLY and zucchini.usual_amount == "3"
 
 
 # --- shopping ---------------------------------------------------------------
@@ -286,6 +288,76 @@ def test_shopping_extras_lifecycle(client_in):
 def test_shopping_extra_rejects_blank(client_in):
     client_in.post(reverse("kondate:shopping_extra_add", args=[DAY]), {"name": ""})
     assert not ShoppingExtra.objects.exists()
+
+
+def test_shopping_text_endpoint(client_in, make_recipe, plan):
+    plan(make_recipe("Txt1", [("Ginger1", "1 knob")]), MONDAY)
+    response = client_in.get(reverse("kondate:shopping_text", args=[DAY]))
+    assert response["Content-Type"].startswith("text/plain")
+    assert "☐ Ginger1 — 1 knob" in response.content.decode()
+
+
+def test_shopping_page_embeds_copyable_text(client_in, make_recipe, plan):
+    plan(make_recipe("Txt2", [("Leek2", "2")]), MONDAY)
+    response = client_in.get(reverse("kondate:shopping_week", args=[DAY]))
+    assert "☐ Leek2 — 2" in response.context["shopping_text"]
+    assert b"data-copy" in response.content and b"mailto:" in response.content
+
+
+def test_add_every_week_item_makes_a_regular(client_in):
+    Ingredient.objects.create(name="Eggs1", category=Ingredient.Category.DAIRY)
+    url = reverse("kondate:shopping_extra_add", args=[DAY])
+    client_in.post(url, {"name": " eggs1 ", "every_week": "on"})
+    client_in.post(url, {"name": "Oat milk", "every_week": "on"})
+    assert not ShoppingExtra.objects.exists()
+    assert Ingredient.objects.get(name="Eggs1").stock == Ingredient.Stock.WEEKLY
+    assert Ingredient.objects.get(name="Oat milk").stock == Ingredient.Stock.WEEKLY
+    # ...and next week they're on the list without doing anything.
+    next_week = (MONDAY + dt.timedelta(days=7)).isoformat()
+    response = client_in.get(reverse("kondate:shopping_week", args=[next_week]))
+    assert {i.name for i in response.context["shopping"].regulars} == {"Eggs1", "Oat milk"}
+
+
+def test_stop_weekly(client_in):
+    eggs = Ingredient.objects.create(name="Eggs2", stock=Ingredient.Stock.WEEKLY)
+    response = client_in.post(reverse("kondate:ingredient_stop_weekly", args=[eggs.pk]), {"day": DAY})
+    assert response["Location"] == reverse("kondate:shopping_week", args=[DAY])
+    eggs.refresh_from_db()
+    assert eggs.stock == Ingredient.Stock.AS_NEEDED
+
+
+def test_new_trip_brings_back_regulars_only(client_in, make_recipe, plan):
+    milk = Ingredient.objects.create(name="Milk3", stock=Ingredient.Stock.WEEKLY)
+    plan(make_recipe("Trip1", [("Basil3", "1")]), MONDAY)
+    basil = Ingredient.objects.get(name="Basil3")
+    for ingredient in (milk, basil):
+        ShoppingCheck.objects.create(week_start=MONDAY, ingredient=ingredient)
+    ShoppingExtra.objects.create(week_start=MONDAY, name="Bought1", checked=True)
+    ShoppingExtra.objects.create(week_start=MONDAY, name="Still need1")
+
+    client_in.post(reverse("kondate:shopping_new_trip", args=[DAY]))
+
+    assert list(ShoppingCheck.objects.values_list("ingredient__name", flat=True)) == ["Basil3"]
+    assert list(ShoppingExtra.objects.values_list("name", flat=True)) == ["Still need1"]
+
+
+def test_week_page_offers_quick_plan_picker(client_in, make_recipe, plan):
+    old = make_recipe("Pick old", [("Pk1", "1")])
+    make_recipe("Pick never")
+    this_week = make_recipe("Pick this week")
+    plan(old, MONDAY - dt.timedelta(days=30))
+    plan(this_week, MONDAY)
+    response = client_in.get(reverse("kondate:week_of", args=[DAY]))
+    suggestions = [r.name for r in response.context["suggestions"]]
+    assert suggestions[0] == "Pick old"  # longest-ago first
+    assert "Pick this week" not in suggestions
+    assert b'id="planner"' in response.content
+    assert b'data-search="pick old pk1 "' in response.content
+
+
+def test_meal_form_uses_slot_radios(client_in):
+    response = client_in.get(reverse("kondate:meal_new"), {"date": DAY})
+    assert b'type="radio" name="slot"' in response.content
 
 
 # --- ops --------------------------------------------------------------------

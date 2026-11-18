@@ -2,10 +2,10 @@
 
 A small, always-on household tool for planning the week's meals and shopping for them.
 
-- **Week** – Seven-day plan with breakfast, lunch, dinner, dessert, and snack slots. A meal is a recipe or a free-text note ("eat out", "leftovers"). You can copy last week's plan into an empty week.
-- **Shopping** – Built automatically from the week's meals. Ingredients are merged across recipes, grouped by store section in walk order, and show which meals need them. You tick items off on your phone as you shop, and two phones stay in sync. Staples (salt, oil…) sit in a collapsed "probably have" section. You can add one-off extras (coffee, paper towels).
-- **Recipes** – Name, link, notes, and ingredients with free-text amounts. Ingredient names autocomplete, and new ones are created as you type them. You can search by ingredient and sort by "not had in a while".
-- **Ingredients** – Bulk-edit each ingredient's store section and staple flag.
+- **Plan**: A seven-day plan, dinner-first. Tap **+** on a day to open a quick-plan sheet: search recipes by name or ingredient, pick from "haven't had in a while" suggestions, or add a note ("leftovers", "eat out"). Breakfast, lunch, dessert and snack slots are there when you need them. You can copy last week's plan into an empty week.
+- **Shop**: Built automatically from the week's meals plus your **weekly regulars** (milk, eggs, bread). Ingredients are merged across recipes, amounts with the same unit are added up ("1/2 cup + 1 1/2 cups" becomes "2 cups"), and everything is grouped by aisle in walk order. Tick items off on your phone. **Copy list**, **Email** or **Share** gives a plain-text version of what's left, ready to paste. **Start another trip** puts the regulars back on the list for a second shop that week. Things you usually have (salt, oil…) sit in a collapsed "check the pantry first" section.
+- **Recipes**: Name, link, notes, and ingredients with free-text amounts. Ingredient names autocomplete, and new ones are created as you type them. Filter as you type, and sort by "not had in a while".
+- **Ingredients**: Set each ingredient's aisle, how you buy it (*when a recipe needs it*, *every week*, *usually have it*) and a usual amount for weekly items.
 
 All data is shared by every account on a deployment (one household). Every page requires sign-in.
 
@@ -13,7 +13,7 @@ Ships with the original 2021 collection: 33 recipes, 122 ingredients, and 213 re
 
 ## Stack
 
-Django 5.2 LTS · server-rendered templates with a small inline script (no build step) · SQLite locally, Postgres in production · gunicorn + whitenoise · pytest-django.
+Django 5.2 LTS · server-rendered templates, one hand-written stylesheet and one progressive-enhancement script (no build step; every action works without JavaScript) · SQLite locally, Postgres in production · gunicorn + whitenoise · pytest-django.
 
 ## Run locally
 
@@ -126,3 +126,7 @@ kondate/
 mysite/          settings, urls, wsgi
 render.yaml      Render blueprint
 ```
+
+## Pending schema cleanup
+
+Migration `0003_ingredient_stock` replaced `Ingredient.is_staple` with `Ingredient.stock` using expand/contract. Django no longer knows about the `is_staple` column, but the column stays in the database (with a database default) so the previous release keeps working while a deploy overlaps old and new instances. Once 0003 is live, a follow-up migration can drop it with `SeparateDatabaseAndState(database_operations=[RunSQL("ALTER TABLE kondate_ingredient DROP COLUMN is_staple")])`.

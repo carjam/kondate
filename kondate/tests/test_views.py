@@ -1,4 +1,6 @@
 import datetime as dt
+import re
+from pathlib import Path
 
 import pytest
 from django.core.management import call_command
@@ -13,7 +15,7 @@ pytestmark = pytest.mark.django_db
 DAY = MONDAY.isoformat()
 
 
-# --- access ---------------------------------------------------------------
+# --- access & security ----------------------------------------------------
 
 @pytest.mark.parametrize(
     "url",
@@ -50,6 +52,43 @@ def test_login_page_renders(client):
     assert client.get(reverse("login")).status_code == 200
 
 
+def _sign_in(client, password):
+    return client.post(reverse("login"), {"username": "cook", "password": password})
+
+
+def test_login_locks_after_repeated_failures(client, user, settings):
+    for _ in range(settings.AXES_FAILURE_LIMIT):
+        _sign_in(client, "wrong")
+    response = _sign_in(client, "pw-for-tests-only")  # even the right password
+    assert response.status_code == 429
+    assert "Sign-in paused" in response.content.decode()
+
+
+def test_successful_login_resets_the_failure_count(client, user, settings):
+    for _ in range(settings.AXES_FAILURE_LIMIT - 1):
+        _sign_in(client, "wrong")
+    assert _sign_in(client, "pw-for-tests-only").status_code == 302
+    client.logout()
+    assert _sign_in(client, "wrong").status_code == 200  # back to one failure, not locked
+
+
+def test_pages_send_a_strict_content_security_policy(client_in):
+    policy = client_in.get(reverse("kondate:week"))["Content-Security-Policy"]
+    assert "script-src 'self'" in policy and "style-src 'self'" in policy
+    assert "unsafe-inline" not in policy
+
+
+def test_templates_have_no_inline_styles_or_scripts():
+    """The CSP forbids them, so they'd silently break in the browser."""
+    root = Path(__file__).resolve().parents[2]
+    offenders = [
+        str(path.relative_to(root))
+        for path in [*root.glob("kondate/templates/**/*.html"), *root.glob("templates/**/*.html")]
+        if re.search(r'style="|<script(?![^>]*\bsrc=)|\son[a-z]+="', path.read_text())
+    ]
+    assert offenders == []
+
+
 # --- week planner ----------------------------------------------------------
 
 def test_week_page_shows_planned_meals(client_in, make_recipe, plan):
@@ -67,8 +106,8 @@ def test_week_page_bad_date_is_404(client_in):
 def test_week_page_query_count(client_in, make_recipe, plan, django_assert_max_num_queries):
     for i in range(7):
         plan(make_recipe(f"W{i}", [(f"WI{i}", "1")]), MONDAY + dt.timedelta(days=i))
-    # session + user + meals JOIN recipe + recipe items prefetch
-    with django_assert_max_num_queries(4):
+    # session, user, meals JOIN recipe, recipe items, picker recipes, picker ingredients
+    with django_assert_max_num_queries(6):
         assert client_in.get(reverse("kondate:week_of", args=[DAY])).status_code == 200
 
 
@@ -125,6 +164,39 @@ def test_copy_previous_week_refuses_non_empty_week(client_in, make_recipe, plan)
     plan(make_recipe("Already1"), MONDAY)
     client_in.post(reverse("kondate:week_copy_previous", args=[DAY]))
     assert Meal.objects.filter(date__gte=MONDAY).count() == 1
+
+
+def test_edit_meal_moves_it_and_says_updated(client_in, make_recipe, plan):
+    meal = plan(make_recipe("Move1"), MONDAY)
+    next_week = MONDAY + dt.timedelta(days=9)
+    response = client_in.post(
+        reverse("kondate:meal_edit", args=[meal.pk]),
+        {"date": next_week.isoformat(), "slot": Meal.Slot.LUNCH, "recipe": meal.recipe_id, "note": ""},
+        follow=True,
+    )
+    meal.refresh_from_db()
+    assert (meal.date, meal.slot) == (next_week, Meal.Slot.LUNCH)
+    assert response.redirect_chain[-1][0] == reverse("kondate:week_of", args=[(MONDAY + dt.timedelta(days=7)).isoformat()])
+    assert "Updated Move1" in response.content.decode()
+
+
+def test_meal_form_uses_slot_radios(client_in):
+    response = client_in.get(reverse("kondate:meal_new"), {"date": DAY})
+    assert b'type="radio" name="slot"' in response.content
+
+
+def test_week_page_offers_quick_plan_picker(client_in, make_recipe, plan):
+    old = make_recipe("Pick old", [("Pk1", "1")])
+    make_recipe("Pick never")
+    this_week = make_recipe("Pick this week")
+    plan(old, MONDAY - dt.timedelta(days=30))
+    plan(this_week, MONDAY)
+    response = client_in.get(reverse("kondate:week_of", args=[DAY]))
+    suggestions = [r.name for r in response.context["suggestions"]]
+    assert suggestions[0] == "Pick old"  # longest-ago first
+    assert "Pick this week" not in suggestions
+    assert b'data-planner' in response.content
+    assert b'data-search="pick old pk1"' in response.content
 
 
 # --- recipes ---------------------------------------------------------------
@@ -225,12 +297,13 @@ def test_ingredient_bulk_edit(client_in):
     for i, form in enumerate(formset.forms):
         data[f"form-{i}-id"] = form.instance.pk
         data[f"form-{i}-category"] = form.instance.category
-        if form.instance.is_staple:
-            data[f"form-{i}-is_staple"] = "on"
+        data[f"form-{i}-stock"] = form.instance.stock
+        data[f"form-{i}-usual_amount"] = form.instance.usual_amount
         if form.instance.name == "zucchini":
             target = i
             data[f"form-{i}-category"] = Ingredient.Category.FROZEN
-            data[f"form-{i}-is_staple"] = "on"
+            data[f"form-{i}-stock"] = Ingredient.Stock.WEEKLY
+            data[f"form-{i}-usual_amount"] = "3"
     assert target is not None
     sections = [f.instance.category for f in formset.forms]
     ranks = [Ingredient.Category.values.index(c) for c in sections]
@@ -238,14 +311,31 @@ def test_ingredient_bulk_edit(client_in):
     response = client_in.post(reverse("kondate:ingredient_list"), data)
     assert response.status_code == 302
     zucchini = Ingredient.objects.get(name="zucchini")
-    assert zucchini.category == Ingredient.Category.FROZEN and zucchini.is_staple
+    assert zucchini.category == Ingredient.Category.FROZEN
+    assert zucchini.stock == Ingredient.Stock.WEEKLY and zucchini.usual_amount == "3"
+
+
+def test_stop_weekly(client_in):
+    eggs = Ingredient.objects.create(name="Eggs2", stock=Ingredient.Stock.WEEKLY)
+    response = client_in.post(reverse("kondate:ingredient_stop_weekly", args=[eggs.pk]), {"day": DAY})
+    assert response["Location"] == reverse("kondate:shopping_of", args=[DAY])
+    eggs.refresh_from_db()
+    assert eggs.stock == Ingredient.Stock.AS_NEEDED
+
+
+def test_admin_link_only_for_staff(client_in, user):
+    url = reverse("kondate:ingredient_list")
+    assert b"/admin/" not in client_in.get(url).content
+    user.is_staff = True
+    user.save()
+    assert b"/admin/" in client_in.get(url).content
 
 
 # --- shopping ---------------------------------------------------------------
 
 def test_shopping_page(client_in, make_recipe, plan):
     plan(make_recipe("Shop1", [("Basil1", "1 bunch", Ingredient.Category.PRODUCE)]), MONDAY)
-    response = client_in.get(reverse("kondate:shopping_week", args=[DAY]))
+    response = client_in.get(reverse("kondate:shopping_of", args=[DAY]))
     assert response.status_code == 200
     assert b"Basil1" in response.content and b"1 bunch" in response.content
 
@@ -256,7 +346,7 @@ def test_shopping_check_sets_state_idempotently(client_in, make_recipe):
     url = reverse("kondate:shopping_check", args=[(MONDAY + dt.timedelta(days=3)).isoformat(), chive.pk])
     for _ in range(2):
         response = client_in.post(url, {"checked": "1"}, headers={"Accept": "application/json"})
-        assert response.json() == {"checked": True}
+        assert response.json()["checked"] is True
     # keyed on the week start, whichever day of the week was in the URL
     assert ShoppingCheck.objects.filter(week_start=MONDAY, ingredient=chive).count() == 1
     response = client_in.post(url, {"checked": "0"})
@@ -270,7 +360,7 @@ def test_shopping_check_unknown_ingredient_404(client_in):
 
 
 def test_shopping_extras_lifecycle(client_in):
-    client_in.post(reverse("kondate:shopping_extra_add", args=[(MONDAY + dt.timedelta(days=1)).isoformat()]), {"name": "Coffee"})
+    client_in.post(reverse("kondate:shopping_extra_new", args=[(MONDAY + dt.timedelta(days=1)).isoformat()]), {"name": "Coffee"})
     extra = ShoppingExtra.objects.get()
     assert extra.week_start == MONDAY
     client_in.post(reverse("kondate:shopping_extra_check", args=[extra.pk]), {"checked": "1"})
@@ -284,8 +374,53 @@ def test_shopping_extras_lifecycle(client_in):
 
 
 def test_shopping_extra_rejects_blank(client_in):
-    client_in.post(reverse("kondate:shopping_extra_add", args=[DAY]), {"name": ""})
+    client_in.post(reverse("kondate:shopping_extra_new", args=[DAY]), {"name": ""})
     assert not ShoppingExtra.objects.exists()
+
+
+def test_tick_response_carries_refreshed_text(client_in, make_recipe, plan):
+    plan(make_recipe("Txt1", [("Ginger1", "1 knob"), ("Garlic1", "2")]), MONDAY)
+    ginger = Ingredient.objects.get(name="Ginger1")
+    url = reverse("kondate:shopping_check", args=[DAY, ginger.pk])
+    data = client_in.post(url, {"checked": "1"}, headers={"Accept": "application/json"}).json()
+    assert data["checked"] is True
+    assert "☐ Garlic1 — 2" in data["text"] and "Ginger1" not in data["text"]
+
+
+def test_shopping_page_embeds_copyable_text(client_in, make_recipe, plan):
+    plan(make_recipe("Txt2", [("Leek2", "2")]), MONDAY)
+    response = client_in.get(reverse("kondate:shopping_of", args=[DAY]))
+    assert "☐ Leek2 — 2" in response.context["shopping_text"]
+    assert b"data-copy" in response.content and b"mailto:" in response.content
+
+
+def test_add_every_week_item_makes_a_regular(client_in):
+    Ingredient.objects.create(name="Eggs1", category=Ingredient.Category.DAIRY)
+    url = reverse("kondate:shopping_extra_new", args=[DAY])
+    client_in.post(url, {"name": " eggs1 ", "every_week": "on"})
+    client_in.post(url, {"name": "Oat milk", "every_week": "on"})
+    assert not ShoppingExtra.objects.exists()
+    assert Ingredient.objects.get(name="Eggs1").stock == Ingredient.Stock.WEEKLY
+    assert Ingredient.objects.get(name="Oat milk").stock == Ingredient.Stock.WEEKLY
+    # ...and next week they're on the list without doing anything.
+    next_week = (MONDAY + dt.timedelta(days=7)).isoformat()
+    response = client_in.get(reverse("kondate:shopping_of", args=[next_week]))
+    assert {i.name for i in response.context["shopping"].regulars} == {"Eggs1", "Oat milk"}
+
+
+def test_new_trip_brings_back_regulars_only(client_in, make_recipe, plan):
+    milk = Ingredient.objects.create(name="Milk3", stock=Ingredient.Stock.WEEKLY)
+    plan(make_recipe("Trip1", [("Basil3", "1")]), MONDAY)
+    basil = Ingredient.objects.get(name="Basil3")
+    for ingredient in (milk, basil):
+        ShoppingCheck.objects.create(week_start=MONDAY, ingredient=ingredient)
+    ShoppingExtra.objects.create(week_start=MONDAY, name="Bought1", checked=True)
+    ShoppingExtra.objects.create(week_start=MONDAY, name="Still need1")
+
+    client_in.post(reverse("kondate:shopping_new_trip", args=[DAY]))
+
+    assert list(ShoppingCheck.objects.values_list("ingredient__name", flat=True)) == ["Basil3"]
+    assert list(ShoppingExtra.objects.values_list("name", flat=True)) == ["Still need1"]
 
 
 # --- ops --------------------------------------------------------------------

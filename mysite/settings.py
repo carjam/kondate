@@ -6,6 +6,7 @@ See README.md for the full list.
 """
 
 import os
+from datetime import timedelta
 from pathlib import Path
 
 import dj_database_url
@@ -52,6 +53,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "whitenoise.runserver_nostatic",
     "django.contrib.staticfiles",
+    "axes",
 ]
 
 MIDDLEWARE = [
@@ -65,7 +67,25 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.LoginRequiredMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "mysite.middleware.ContentSecurityPolicyMiddleware",
+    # Last, as axes requires; inside the CSP middleware so lockout pages get the header too.
+    "axes.middleware.AxesMiddleware",
 ]
+
+# Everything is served from this origin: no inline script or style, no CDNs.
+# data: images are the inline SVG favicon. Set CSP_REPORT_ONLY=1 to test a
+# change to this policy in the browser console without enforcing it.
+CSP_DIRECTIVES = {
+    "default-src": "'self'",
+    "script-src": "'self'",
+    "style-src": "'self'",
+    "img-src": "'self' data:",
+    "object-src": "'none'",
+    "base-uri": "'none'",
+    "form-action": "'self'",
+    "frame-ancestors": "'none'",
+}
+CSP_REPORT_ONLY = env_bool("CSP_REPORT_ONLY", default=False)
 
 ROOT_URLCONF = "mysite.urls"
 
@@ -112,6 +132,24 @@ LOGOUT_REDIRECT_URL = "login"
 # A household tool checked on a phone: stay signed in for 90 days.
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 90
 
+# Login rate limiting (django-axes), for the app's sign-in and the admin's.
+# Locked by username only: behind Render's proxy REMOTE_ADDR is the proxy, and
+# trusting X-Forwarded-For without knowing the proxy chain would let an
+# attacker pick a fresh "IP" per guess. The trade-off: someone who knows a
+# username can lock that account for an hour. An admin can unlock it sooner
+# by deleting its access attempts in /admin/axes/.
+AUTHENTICATION_BACKENDS = [
+    "axes.backends.AxesStandaloneBackend",
+    "django.contrib.auth.backends.ModelBackend",
+]
+AXES_LOCKOUT_PARAMETERS = ["username"]
+AXES_FAILURE_LIMIT = 10
+AXES_COOLOFF_TIME = timedelta(hours=1)
+AXES_RESET_ON_SUCCESS = True
+AXES_LOCKOUT_TEMPLATE = "registration/locked_out.html"
+# W006 asks for ip_address in AXES_LOCKOUT_PARAMETERS; see the trade-off above.
+SILENCED_SYSTEM_CHECKS = ["axes.W006"]
+
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = os.environ.get("TIME_ZONE", "America/Los_Angeles")
@@ -148,7 +186,7 @@ if not DEBUG:
     SECURE_REFERRER_POLICY = "same-origin"
     # HSTS preload / includeSubdomains are for a domain you own outright, not a
     # shared *.onrender.com host. Revisit if you put this on your own domain.
-    SILENCED_SYSTEM_CHECKS = ["security.W005", "security.W021"]
+    SILENCED_SYSTEM_CHECKS += ["security.W005", "security.W021"]
 
 
 LOGGING = {

@@ -2,35 +2,51 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f6f3ec" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#141311" media="(prefers-color-scheme: dark)">
   <title>{% block title %}Kondate{% endblock %} · 献立</title>
   <link rel="stylesheet" href="{% static 'kondate/css/styles.css' %}">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍱</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23c0432a'/><text x='50' y='70' font-size='58' text-anchor='middle' fill='white' font-family='serif'>献</text></svg>">
+  <script src="{% static 'kondate/js/app.js' %}" defer></script>
 </head>
-<body>
+<body class="{% block bodyclass %}{% endblock %}">
+  {% include 'kondate/_icons.html' %}
   <header class="topbar">
-    <a class="brand" href="{% url 'kondate:week' %}"><span class="kanji">献立</span> kondate</a>
+    <a class="brand" href="{% url 'kondate:week' %}" aria-label="Kondate home">
+      <span class="brand-mark" aria-hidden="true">献</span>
+      <span class="brand-name">kondate</span>
+    </a>
     {% if user.is_authenticated %}
-    <nav class="nav">
-      {% with name=request.resolver_match.url_name %}
-      <a href="{% url 'kondate:week' %}" {% if name == 'week' or name == 'week_of' %}aria-current="page"{% endif %}>Week</a>
-      <a href="{% url 'kondate:shopping' %}" {% if name == 'shopping' or name == 'shopping_week' %}aria-current="page"{% endif %}>Shopping</a>
-      <a href="{% url 'kondate:recipe_list' %}" {% if name|slice:":6" == 'recipe' %}aria-current="page"{% endif %}>Recipes</a>
-      <a href="{% url 'kondate:ingredient_list' %}" {% if name == 'ingredient_list' %}aria-current="page"{% endif %}>Ingredients</a>
-      {% endwith %}
-      <form method="post" action="{% url 'logout' %}" class="inline">{% csrf_token %}<button class="linklike" type="submit">Sign out</button></form>
+    {% with name=request.resolver_match.url_name %}
+    <nav class="tabs" aria-label="Main">
+      <a href="{% url 'kondate:week' %}" {% if name == 'week' or name == 'week_of' or name|slice:":4" == 'meal' %}aria-current="page"{% endif %}>
+        <svg aria-hidden="true"><use href="#i-calendar"/></svg><span>Plan</span></a>
+      <a href="{% url 'kondate:shopping' %}" {% if name|slice:":8" == 'shopping' %}aria-current="page"{% endif %}>
+        <svg aria-hidden="true"><use href="#i-basket"/></svg><span>Shop</span></a>
+      <a href="{% url 'kondate:recipe_list' %}" {% if name|slice:":6" == 'recipe' %}aria-current="page"{% endif %}>
+        <svg aria-hidden="true"><use href="#i-book"/></svg><span>Recipes</span></a>
+      <a href="{% url 'kondate:ingredient_list' %}" {% if name == 'ingredient_list' %}aria-current="page"{% endif %}>
+        <svg aria-hidden="true"><use href="#i-leaf"/></svg><span>Ingredients</span></a>
     </nav>
+    {% endwith %}
+    <form method="post" action="{% url 'logout' %}" class="signout">{% csrf_token %}
+      <button class="btn ghost small" type="submit" title="Signed in as {{ user.get_username }}">Sign out</button>
+    </form>
     {% endif %}
   </header>
 
   <main class="page">
-    {% for message in messages %}
-      <div class="flash flash-{{ message.tags }}" role="status">{{ message }}</div>
-    {% endfor %}
     {% block content %}{% endblock %}
   </main>
 
-  {% block script %}{% endblock %}
+  {% if messages %}
+  <div class="toasts" role="status" aria-live="polite">
+    {% for message in messages %}
+      <div class="toast toast-{{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
 </body>
 </html>

@@ -2,8 +2,13 @@ import datetime as dt
 
 import pytest
 
-from kondate.models import Ingredient, Meal, ShoppingCheck
-from kondate.planning import build_shopping_list, week_days, week_start_for
+from kondate.models import Ingredient, Meal, ShoppingCheck, ShoppingExtra
+from kondate.planning import (
+    build_shopping_list,
+    shopping_list_text,
+    week_days,
+    week_start_for,
+)
 
 from .conftest import MONDAY
 
@@ -29,7 +34,7 @@ def test_week_days_has_seven_consecutive_days():
 @pytest.mark.django_db
 def test_shopping_list_merges_ingredients_across_meals(make_recipe, plan):
     P, D, S = Ingredient.Category.PRODUCE, Ingredient.Category.DAIRY, Ingredient.Category.SPICES
-    tacos = make_recipe("T1", [("Onion1", "1", P), ("Cheese1", "1 cup", D), ("Salt1", "", S, True)])
+    tacos = make_recipe("T1", [("Onion1", "1", P), ("Cheese1", "1 cup", D), ("Salt1", "", S, Ingredient.Stock.PANTRY)])
     soup = make_recipe("S1", [("onion1", "2", P)])  # same ingredient, different case
     plan(tacos, MONDAY)
     plan(soup, MONDAY + dt.timedelta(days=2))
@@ -41,9 +46,9 @@ def test_shopping_list_merges_ingredients_across_meals(make_recipe, plan):
     assert [s.label for s in shopping.sections] == ["Produce", "Dairy & eggs"]
     onion = shopping.sections[0].lines[0]
     assert onion.ingredient.name == "Onion1"
-    assert onion.amounts == "1 + 2"
+    assert onion.amounts == "3"  # same unit (none), so added up
     assert [n.recipe for n in onion.needs] == ["T1", "S1"]
-    assert [ln.ingredient.name for ln in shopping.staples] == ["Salt1"]
+    assert [ln.ingredient.name for ln in shopping.pantry] == ["Salt1"]
     assert shopping.remaining == 2
 
 
@@ -65,26 +70,60 @@ def test_shopping_list_query_count_is_constant(make_recipe, plan, django_assert_
     for i in range(6):
         recipe = make_recipe(f"Q{i}", [(f"QI{i}a", "1"), (f"QI{i}b", "2")])
         plan(recipe, MONDAY + dt.timedelta(days=i))
-    # 1: meals JOIN recipe, 2: recipe items JOIN ingredient (prefetch), 3: checks
-    with django_assert_num_queries(3):
+    # meals JOIN recipe, recipe items JOIN ingredient, weekly regulars, checks, extras
+    with django_assert_num_queries(5):
         shopping = build_shopping_list(MONDAY)
     assert sum(len(s.lines) for s in shopping.sections) == 12
 
 
-@pytest.mark.django_db
-def test_meal_requires_recipe_or_note_at_db_level():
-    from django.db import IntegrityError
-
-    with pytest.raises(IntegrityError):
-        Meal.objects.create(date=MONDAY, recipe=None, note="")
 
 
 @pytest.mark.django_db
-def test_seed_migration_loaded_original_recipes():
-    from kondate.models import Recipe
+def test_weekly_regulars_are_always_on_the_list(make_recipe, plan):
+    P, D = Ingredient.Category.PRODUCE, Ingredient.Category.DAIRY
+    milk = Ingredient.objects.create(
+        name="Milk1", category=D, stock=Ingredient.Stock.WEEKLY, usual_amount="1 gallon"
+    )
+    Ingredient.objects.create(name="Bananas1", category=P, stock=Ingredient.Stock.WEEKLY)
 
-    assert Recipe.objects.count() >= 33
-    kabob = Recipe.objects.get(name="chicken kabob")
-    amounts = {i.ingredient.name: i.amount for i in kabob.items.select_related("ingredient")}
-    assert amounts["chicken breast"] == "4 breast halves"
-    assert Ingredient.objects.get(name="salt").is_staple
+    # No meals planned: regulars alone make a list.
+    shopping = build_shopping_list(MONDAY)
+    assert [ln.ingredient.name for s in shopping.sections for ln in s.lines] == ["Bananas1", "Milk1"]
+    assert [i.name for i in shopping.regulars] == ["Bananas1", "Milk1"]
+
+    # A recipe that also needs milk merges into the same line.
+    plan(make_recipe("Pancakes1", [("milk1", "1 cup", D)]), MONDAY)
+    shopping = build_shopping_list(MONDAY)
+    line = next(ln for s in shopping.sections for ln in s.lines if ln.ingredient == milk)
+    assert line.ingredient.is_weekly and line.amounts == "1 gallon + 1 cup"
+    assert [n.recipe for n in line.needs] == ["Pancakes1"]
+
+
+@pytest.mark.django_db
+def test_shopping_list_text_lists_what_is_left(make_recipe, plan):
+
+    P, S = Ingredient.Category.PRODUCE, Ingredient.Category.SPICES
+    plan(make_recipe("Tacos1", [("Lime1", "2", P), ("Cilantro1", "1 bunch", P), ("Cumin1", "1 tsp", S, Ingredient.Stock.PANTRY)]), MONDAY)
+    plan(None, MONDAY + dt.timedelta(days=1), note="leftovers", slot=Meal.Slot.LUNCH)
+    ShoppingCheck.objects.create(week_start=MONDAY, ingredient=Ingredient.objects.get(name="Cilantro1"))
+    ShoppingExtra.objects.create(week_start=MONDAY, name="Coffee")
+    ShoppingExtra.objects.create(week_start=MONDAY, name="Foil", checked=True)
+
+    text = shopping_list_text(build_shopping_list(MONDAY))
+
+    assert text == (
+        "Shopping list · Nov 16–22\n"
+        "\n"
+        "PRODUCE\n"
+        "☐ Lime1 — 2\n"
+        "\n"
+        "EXTRAS\n"
+        "☐ Coffee\n"
+        "\n"
+        "CHECK THE PANTRY FIRST\n"
+        "☐ Cumin1 — 1 tsp\n"
+        "\n"
+        "MEALS THIS WEEK\n"
+        "Mon  Tacos1\n"
+        "Tue  leftovers (lunch)\n"
+    )

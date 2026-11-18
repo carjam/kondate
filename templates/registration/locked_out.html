@@ -1,0 +1,10 @@
+{% extends 'kondate/base.html' %}
+{% block title %}Sign-in paused{% endblock %}
+{% block bodyclass %}login-page{% endblock %}
+{% block content %}
+<div class="login">
+  <div class="login-mark" aria-hidden="true">献立</div>
+  <h1>Sign-in paused</h1>
+  <p class="muted">After {{ failure_limit }} wrong passwords, sign-in for this account is paused for a while. Try again later, or ask someone with an admin account to unlock it.</p>
+</div>
+{% endblock %}

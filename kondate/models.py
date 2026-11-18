@@ -4,10 +4,23 @@ per-week shopping list state derived from it.
 Data is shared by every signed-in account (one household per deployment).
 """
 
+from urllib.parse import urlsplit
+
 from django.db import models
-from django.db.models import Q
+from django.db.models import Case, Max, Prefetch, Q, Value, When
 from django.db.models.functions import Lower
 from django.urls import reverse
+
+
+class IngredientQuerySet(models.QuerySet):
+    def in_store_order(self):
+        """Aisle in store-walk order (the order ``Category`` is declared in), then name."""
+        categories = Ingredient.Category.values
+        rank = Case(
+            *(When(category=value, then=Value(i)) for i, value in enumerate(categories)),
+            default=Value(len(categories)),
+        )
+        return self.order_by(rank, Lower("name"))
 
 
 class Ingredient(models.Model):
@@ -23,12 +36,29 @@ class Ingredient(models.Model):
         FROZEN = "frozen", "Frozen"
         OTHER = "other", "Other"
 
+    class Stock(models.TextChoices):
+        """How the household buys it, which decides where it lands on the list."""
+
+        AS_NEEDED = "as_needed", "When a recipe needs it"
+        WEEKLY = "weekly", "Every week"
+        PANTRY = "pantry", "Usually have it"
+
     name = models.CharField(max_length=200)
     category = models.CharField(max_length=20, choices=Category.choices, default=Category.OTHER)
-    is_staple = models.BooleanField(
-        default=False,
-        help_text="Usually on hand (salt, oil...). Listed separately on the shopping list.",
+    # db_default keeps inserts from the previous release working while a deploy
+    # overlaps old and new instances (see migration 0003).
+    stock = models.CharField(
+        max_length=10,
+        choices=Stock.choices,
+        default=Stock.AS_NEEDED,
+        db_default=Stock.AS_NEEDED,
+        help_text="Every week: always on the list. Usually have it: listed under “check the pantry”.",
     )
+    usual_amount = models.CharField(
+        max_length=100, blank=True, db_default="", help_text="For weekly items, e.g. “1 gallon”."
+    )
+
+    objects = IngredientQuerySet.as_manager()
 
     class Meta:
         ordering = [Lower("name")]
@@ -39,9 +69,25 @@ class Ingredient(models.Model):
     def __str__(self) -> str:
         return self.name
 
+    @property
+    def is_weekly(self) -> bool:
+        return self.stock == self.Stock.WEEKLY
+
+    @property
+    def is_pantry(self) -> bool:
+        return self.stock == self.Stock.PANTRY
+
     @classmethod
     def category_rank(cls, category: str) -> int:
         return cls.Category.values.index(category) if category in cls.Category.values else len(cls.Category.values)
+
+
+class RecipeQuerySet(models.QuerySet):
+    def for_browsing(self):
+        """What recipe pickers show: when each was last planned, plus the
+        ingredient names that ``Recipe.search_text`` reads (one extra query)."""
+        names = Prefetch("ingredients", queryset=Ingredient.objects.only("name"))
+        return self.annotate(last_planned=Max("meals__date")).prefetch_related(names)
 
 
 class Recipe(models.Model):
@@ -49,6 +95,8 @@ class Recipe(models.Model):
     url = models.URLField(max_length=500, blank=True)
     notes = models.TextField(blank=True)
     ingredients = models.ManyToManyField(Ingredient, through="RecipeIngredient", related_name="recipes")
+
+    objects = RecipeQuerySet.as_manager()
 
     class Meta:
         ordering = [Lower("name")]
@@ -61,6 +109,18 @@ class Recipe(models.Model):
 
     def get_absolute_url(self) -> str:
         return reverse("kondate:recipe_detail", args=[self.pk])
+
+    @property
+    def source(self) -> str:
+        """The link's site, e.g. "tasteofhome.com"."""
+        host = urlsplit(self.url).hostname or ""
+        return host.removeprefix("www.")
+
+    @property
+    def search_text(self) -> str:
+        """Lowercase name and ingredient names, for filtering in the browser.
+        Use with ``Recipe.objects.for_browsing()`` to avoid a query per recipe."""
+        return " ".join([self.name, *(i.name for i in self.ingredients.all())]).lower()
 
 
 class RecipeIngredient(models.Model):
@@ -124,6 +184,9 @@ class ShoppingCheck(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["week_start", "ingredient"], name="shopping_check_unique"),
         ]
+
+    def __str__(self) -> str:
+        return f"{self.week_start}: {self.ingredient}"
 
 
 class ShoppingExtra(models.Model):

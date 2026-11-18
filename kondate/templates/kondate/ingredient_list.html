@@ -3,27 +3,48 @@
 {% block content %}
 <div class="pagehead">
   <div>
-    <h1>Ingredients</h1>
-    <p class="muted">Store section sets the order on the shopping list. Staples are listed separately as “probably have”.</p>
+    <p class="eyebrow">Ingredients</p>
+    <h1>How we shop</h1>
+    <p class="muted">The aisle sets the order on the shopping list. <b>Every week</b> items are always on the list; <b>Usually have it</b> items go under “check the pantry”.</p>
   </div>
 </div>
-<form method="post" class="card">
+
+<div class="toolbar" data-live-filter="ingredients">
+  <label class="searchfield">
+    <svg aria-hidden="true"><use href="#i-search"/></svg>
+    <input type="search" placeholder="Find an ingredient" aria-label="Find an ingredient" autocomplete="off">
+  </label>
+  <div class="segmented compact" role="radiogroup" aria-label="Show">
+    <label><input type="radio" name="buy" value="" {% if not buy %}checked{% endif %} data-filter-buy><span>All</span></label>
+    {% for value, label in stock_choices %}
+    <label><input type="radio" name="buy" value="{{ value }}" {% if buy == value %}checked{% endif %} data-filter-buy><span>{{ label }}</span></label>
+    {% endfor %}
+  </div>
+</div>
+
+<form method="post" class="card tablecard">
   {% csrf_token %}
   {{ formset.management_form }}
-  <table class="table">
-    <thead><tr><th>Ingredient</th><th>Store section</th><th>Staple</th></tr></thead>
+  <div class="tablewrap">
+  <table class="table" data-filter-target="ingredients">
+    <thead><tr><th>Ingredient</th><th>Aisle</th><th>Buy</th><th>Usual amount</th></tr></thead>
     <tbody>
     {% for form in formset %}
-      {% ifchanged form.instance.category %}<tr class="group"><th colspan="3">{{ form.instance.get_category_display }}</th></tr>{% endifchanged %}
-      <tr>
-        <td>{{ form.id }}{{ form.instance.name }} <span class="muted small">{{ form.instance.recipe_count }} recipe{{ form.instance.recipe_count|pluralize }}</span></td>
+      {% ifchanged form.instance.category %}<tr class="group" data-group><th colspan="4">{{ form.instance.get_category_display }}</th></tr>{% endifchanged %}
+      <tr data-search="{{ form.instance.name|lower }}" data-buy="{{ form.instance.stock }}">
+        <td>{{ form.id }}<span class="ingname">{{ form.instance.name }}</span>
+          <span class="muted small">{% if form.instance.recipe_count %}{{ form.instance.recipe_count }} recipe{{ form.instance.recipe_count|pluralize }}{% else %}no recipes{% endif %}</span></td>
         <td>{{ form.category }}</td>
-        <td>{{ form.is_staple }}</td>
+        <td>{{ form.stock }}</td>
+        <td>{{ form.usual_amount }}</td>
       </tr>
     {% endfor %}
     </tbody>
   </table>
-  <div class="actions sticky"><button class="btn primary" type="submit">Save changes</button>
-    <a class="muted small" href="{% url 'admin:kondate_ingredient_changelist' %}">Rename or delete in admin</a></div>
+  </div>
+  <div class="savebar">
+    <button class="btn primary" type="submit">Save changes</button>
+    {% if user.is_staff %}<a class="muted small" href="{% url 'admin:kondate_ingredient_changelist' %}">Rename or delete in admin</a>{% endif %}
+  </div>
 </form>
 {% endblock %}

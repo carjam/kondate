@@ -9,7 +9,7 @@ A step-by-step runbook for getting kondate online. Expect it to take about 30 mi
 | Item | Status |
 |---|---|
 | Code | Merged to `master` (PR #1) |
-| CI | Passing on `master`: migration check, `check --deploy`, 49 tests on Postgres 17 |
+| CI | Passing on `master`: migration check, `check --deploy`, the test suite on Postgres 17 |
 | Supabase project | Created: `kondate`, West US (Oregon), Data API off, automatic RLS on |
 | Render service | Live at https://kondate-xxxx.onrender.com, auto-deploys from `master` |
 

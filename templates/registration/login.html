@@ -1,13 +1,16 @@
 {% extends 'kondate/base.html' %}
 {% block title %}Sign in{% endblock %}
+{% block bodyclass %}login-page{% endblock %}
 {% block content %}
-<div class="narrow login">
-  <h1>Sign in</h1>
+<div class="login">
+  <div class="login-mark" aria-hidden="true">献立</div>
+  <h1>kondate</h1>
+  <p class="muted">Plan the week's meals. Shop for them in one pass.</p>
   <form method="post" class="card form">
     {% csrf_token %}
     {% include 'kondate/_form_fields.html' %}
     <input type="hidden" name="next" value="{{ next }}">
-    <div class="actions"><button class="btn primary" type="submit">Sign in</button></div>
+    <button class="btn primary block" type="submit">Sign in</button>
   </form>
 </div>
 {% endblock %}

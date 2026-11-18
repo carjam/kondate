@@ -3,13 +3,14 @@ import datetime as dt
 from django.contrib import messages
 from django.contrib.auth.decorators import login_not_required
 from django.db import transaction
-from django.db.models import Case, Count, F, Max, ProtectedError, Q, Value, When
+from django.db.models import Count, F, ProtectedError, Q
 from django.db.models.functions import Lower
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
-from django.views.decorators.http import require_safe, require_POST
+from django.utils.text import capfirst
+from django.views.decorators.http import require_POST, require_safe
 
 from .forms import (
     IngredientFormSet,
@@ -18,11 +19,20 @@ from .forms import (
     RecipeItemFormSet,
     ShoppingExtraForm,
 )
-from .models import Ingredient, Meal, Recipe, RecipeIngredient, ShoppingCheck, ShoppingExtra
+from .models import (
+    Ingredient,
+    Meal,
+    Recipe,
+    RecipeIngredient,
+    ShoppingCheck,
+    ShoppingExtra,
+)
 from .planning import (
     build_shopping_list,
     current_week_start,
+    day_range,
     meals_in_week,
+    shopping_list_text,
     week_days,
     week_start_for,
 )
@@ -35,10 +45,26 @@ def _parse_day(value: str) -> dt.date:
         raise Http404("Not a valid date") from None
 
 
+def _week_of(day: str | None) -> dt.date:
+    """Start of the planning week containing ``day`` (any ISO date), or of this week."""
+    return week_start_for(_parse_day(day)) if day else current_week_start()
+
+
+def _to_week(start: dt.date):
+    return redirect("kondate:week_of", day=start.isoformat())
+
+
+def _to_shopping(start: dt.date, anchor: str = ""):
+    url = reverse("kondate:shopping_of", kwargs={"day": start.isoformat()})
+    return redirect(url + (f"#{anchor}" if anchor else ""))
+
+
 def _week_nav(start: dt.date) -> dict:
+    end = start + dt.timedelta(days=6)
     return {
         "week_start": start,
-        "week_end": start + dt.timedelta(days=6),
+        "week_end": end,
+        "week_label": day_range(start, end),
         "prev_week": start - dt.timedelta(days=7),
         "next_week": start + dt.timedelta(days=7),
         "this_week": current_week_start(),
@@ -58,17 +84,33 @@ def healthz(request):
 # --- Week planner -----------------------------------------------------------
 
 
+def _picker_recipes(exclude_ids: set[int]) -> tuple[list[Recipe], list[Recipe]]:
+    """All recipes for the quick-plan sheet, plus a few "haven't had in a while"
+    suggestions: longest-ago first, then never-planned, skipping this week's."""
+    recipes = list(Recipe.objects.for_browsing().order_by(Lower("name")))
+    candidates = [r for r in recipes if r.pk not in exclude_ids]
+    candidates.sort(key=lambda r: (r.last_planned is None, r.last_planned or dt.date.min))
+    return recipes, candidates[:5]
+
+
 @require_safe
 def week(request, day: str | None = None):
-    start = week_start_for(_parse_day(day)) if day else current_week_start()
+    start = _week_of(day)
     meals = list(meals_in_week(start))
     days = [{"date": d, "meals": [m for m in meals if m.date == d]} for d in week_days(start)]
+    recipes, suggestions = _picker_recipes({m.recipe_id for m in meals if m.recipe_id})
+    dinners = sum(1 for m in meals if m.slot == Meal.Slot.DINNER)
     context = {
         **_week_nav(start),
         "days": days,
         "today": timezone.localdate(),
         "planned_count": len(meals),
+        "dinner_count": dinners,
+        "other_count": len(meals) - dinners,
         "slots": Meal.Slot.choices,
+        "default_slot": Meal.Slot.DINNER,
+        "recipes": recipes,
+        "suggestions": suggestions,
     }
     return render(request, "kondate/week.html", context)
 
@@ -79,8 +121,9 @@ def meal_edit(request, pk: int | None = None):
         form = MealForm(request.POST, instance=meal)
         if form.is_valid():
             meal = form.save()
-            messages.success(request, f"Planned {meal.title} for {meal.date:%a %b} {meal.date.day}.")
-            return redirect("kondate:week_of", day=week_start_for(meal.date).isoformat())
+            verb = "Updated" if pk else "Planned"
+            messages.success(request, f"{verb} {meal.title} for {meal.date:%A}.")
+            return _to_week(week_start_for(meal.date))
     else:
         initial = {}
         if meal is None:
@@ -89,7 +132,12 @@ def meal_edit(request, pk: int | None = None):
             if recipe_id := request.GET.get("recipe"):
                 initial["recipe"] = recipe_id
         form = MealForm(instance=meal, initial=initial)
-    return render(request, "kondate/meal_form.html", {"form": form, "meal": meal})
+    back_url = (
+        reverse("kondate:week_of", args=[week_start_for(meal.date).isoformat()])
+        if meal
+        else reverse("kondate:week")
+    )
+    return render(request, "kondate/meal_form.html", {"form": form, "meal": meal, "back_url": back_url})
 
 
 @require_POST
@@ -97,14 +145,14 @@ def meal_delete(request, pk: int):
     meal = get_object_or_404(Meal, pk=pk)
     week_of = week_start_for(meal.date)
     meal.delete()
-    messages.success(request, f"Removed {meal.title}.")
-    return redirect("kondate:week_of", day=week_of.isoformat())
+    messages.success(request, f"Removed {meal.title} from {meal.date:%A}.")
+    return _to_week(week_of)
 
 
 @require_POST
 def week_copy_previous(request, day: str):
     """Copy last week's plan into this week (only into an empty week)."""
-    start = week_start_for(_parse_day(day))
+    start = _week_of(day)
     with transaction.atomic():
         if Meal.objects.filter(date__gte=start, date__lt=start + dt.timedelta(days=7)).exists():
             messages.error(request, "This week already has meals; clear it first.")
@@ -118,7 +166,7 @@ def week_copy_previous(request, day: str):
             ]
             Meal.objects.bulk_create(copies)
             messages.success(request, f"Copied {len(copies)} meals from last week.")
-    return redirect("kondate:week_of", day=start.isoformat())
+    return _to_week(start)
 
 
 # --- Recipes ----------------------------------------------------------------
@@ -128,10 +176,7 @@ def week_copy_previous(request, day: str):
 def recipe_list(request):
     q = request.GET.get("q", "").strip()
     sort = request.GET.get("sort", "name")
-    recipes = Recipe.objects.annotate(
-        item_count=Count("items", distinct=True),
-        last_planned=Max("meals__date"),
-    )
+    recipes = Recipe.objects.for_browsing().annotate(item_count=Count("items", distinct=True))
     if q:
         recipes = recipes.filter(
             Q(name__icontains=q) | Q(notes__icontains=q) | Q(items__ingredient__name__icontains=q)
@@ -142,7 +187,8 @@ def recipe_list(request):
     else:
         sort = "name"
         recipes = recipes.order_by(Lower("name"))
-    return render(request, "kondate/recipe_list.html", {"recipes": recipes, "q": q, "sort": sort})
+    context = {"recipes": recipes, "q": q, "sort": sort, "today": timezone.localdate()}
+    return render(request, "kondate/recipe_list.html", context)
 
 
 @require_safe
@@ -188,6 +234,8 @@ def recipe_edit(request, pk: int | None = None):
         "formset": formset,
         "recipe": recipe,
         "ingredient_names": Ingredient.objects.values_list("name", flat=True),
+        "back_url": recipe.get_absolute_url() if recipe else reverse("kondate:recipe_list"),
+        "back_label": capfirst(recipe.name) if recipe else "Recipes",
     }
     return render(request, "kondate/recipe_form.html", context)
 
@@ -211,22 +259,31 @@ def recipe_delete(request, pk: int):
 
 
 def ingredient_list(request):
-    store_order = Case(
-        *(When(category=value, then=Value(rank)) for rank, value in enumerate(Ingredient.Category.values)),
-        default=Value(len(Ingredient.Category.values)),
-    )
-    queryset = Ingredient.objects.annotate(recipe_count=Count("recipe_items")).order_by(
-        store_order, Lower("name")
-    )
+    queryset = Ingredient.objects.in_store_order().annotate(recipe_count=Count("recipe_items"))
     if request.method == "POST":
         formset = IngredientFormSet(request.POST, queryset=queryset)
         if formset.is_valid():
             formset.save()
-            messages.success(request, "Ingredients updated.")
+            messages.success(request, "Saved ingredients.")
             return redirect("kondate:ingredient_list")
     else:
         formset = IngredientFormSet(queryset=queryset)
-    return render(request, "kondate/ingredient_list.html", {"formset": formset})
+    context = {
+        "formset": formset,
+        "stock_choices": Ingredient.Stock.choices,
+        "buy": request.GET.get("buy", ""),
+    }
+    return render(request, "kondate/ingredient_list.html", context)
+
+
+@require_POST
+def ingredient_stop_weekly(request, pk: int):
+    ingredient = get_object_or_404(Ingredient, pk=pk)
+    ingredient.stock = Ingredient.Stock.AS_NEEDED
+    ingredient.save(update_fields=["stock"])
+    messages.success(request, f"{ingredient.name} is no longer a weekly regular.")
+    return _to_shopping(_week_of(request.POST.get("day")))
+
 
 
 # --- Shopping list ----------------------------------------------------------
@@ -234,55 +291,80 @@ def ingredient_list(request):
 
 @require_safe
 def shopping(request, day: str | None = None):
-    start = week_start_for(_parse_day(day)) if day else current_week_start()
+    start = _week_of(day)
+    shopping_list = build_shopping_list(start)
     context = {
         **_week_nav(start),
-        "shopping": build_shopping_list(start),
-        "extras": ShoppingExtra.objects.filter(week_start=start),
+        "shopping": shopping_list,
+        "shopping_text": shopping_list_text(shopping_list),
         "extra_form": ShoppingExtraForm(),
+        "email": request.user.email,
     }
     return render(request, "kondate/shopping.html", context)
 
 
-def _back_to_list(request, start: dt.date, payload: dict):
+def _tick_response(request, start: dt.date, checked: bool):
+    """JSON for the page's fetch (with the refreshed copy-paste text, so it
+    needs no second request), or a redirect for a plain form post."""
     if _wants_json(request):
-        return JsonResponse(payload)
-    return redirect("kondate:shopping_week", day=start.isoformat())
+        text = shopping_list_text(build_shopping_list(start))
+        return JsonResponse({"checked": checked, "text": text})
+    return _to_shopping(start)
 
 
 @require_POST
-def shopping_check(request, day: str, ingredient_id: int):
+def shopping_check(request, day: str, pk: int):
     """Set (not toggle) the checked state, so two phones can't flip-flop it."""
-    start = week_start_for(_parse_day(day))
-    ingredient = get_object_or_404(Ingredient, pk=ingredient_id)
+    start = _week_of(day)
+    ingredient = get_object_or_404(Ingredient, pk=pk)
     checked = request.POST.get("checked") == "1"
     if checked:
         ShoppingCheck.objects.get_or_create(week_start=start, ingredient=ingredient)
     else:
         ShoppingCheck.objects.filter(week_start=start, ingredient=ingredient).delete()
-    return _back_to_list(request, start, {"checked": checked})
+    return _tick_response(request, start, checked)
 
 
 @require_POST
 def shopping_reset(request, day: str):
-    start = week_start_for(_parse_day(day))
+    start = _week_of(day)
     ShoppingCheck.objects.filter(week_start=start).delete()
     ShoppingExtra.objects.filter(week_start=start).update(checked=False)
     messages.success(request, "Unchecked everything.")
-    return redirect("kondate:shopping_week", day=start.isoformat())
+    return _to_shopping(start)
 
 
 @require_POST
-def shopping_extra_add(request, day: str):
-    start = week_start_for(_parse_day(day))
+def shopping_new_trip(request, day: str):
+    """Second trip of the week: weekly regulars come back, while recipe
+    ingredients already bought stay ticked and bought extras are cleared."""
+    start = _week_of(day)
+    with transaction.atomic():
+        ShoppingCheck.objects.filter(
+            week_start=start, ingredient__stock=Ingredient.Stock.WEEKLY
+        ).delete()
+        ShoppingExtra.objects.filter(week_start=start, checked=True).delete()
+    messages.success(request, "Ready for the next trip. Your regulars are back on the list.")
+    return _to_shopping(start)
+
+
+@require_POST
+def shopping_extra_new(request, day: str):
+    start = _week_of(day)
     form = ShoppingExtraForm(request.POST)
-    if form.is_valid():
+    if not form.is_valid():
+        messages.error(request, "Item name can't be empty.")
+    elif form.cleaned_data["every_week"]:
+        ingredient = _ingredient_for(form.cleaned_data["name"])
+        if not ingredient.is_weekly:
+            ingredient.stock = Ingredient.Stock.WEEKLY
+            ingredient.save(update_fields=["stock"])
+        messages.success(request, f"{ingredient.name} is now on the list every week.")
+    else:
         extra = form.save(commit=False)
         extra.week_start = start
         extra.save()
-    else:
-        messages.error(request, "Item name can't be empty.")
-    return redirect(reverse("kondate:shopping_week", kwargs={"day": start.isoformat()}) + "#extras")
+    return _to_shopping(start, "extras")
 
 
 @require_POST
@@ -290,11 +372,11 @@ def shopping_extra_check(request, pk: int):
     extra = get_object_or_404(ShoppingExtra, pk=pk)
     extra.checked = request.POST.get("checked") == "1"
     extra.save(update_fields=["checked"])
-    return _back_to_list(request, extra.week_start, {"checked": extra.checked})
+    return _tick_response(request, extra.week_start, extra.checked)
 
 
 @require_POST
 def shopping_extra_delete(request, pk: int):
     extra = get_object_or_404(ShoppingExtra, pk=pk)
     extra.delete()
-    return redirect(reverse("kondate:shopping_week", kwargs={"day": extra.week_start.isoformat()}) + "#extras")
+    return _to_shopping(extra.week_start, "extras")

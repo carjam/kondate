@@ -1,48 +1,129 @@
 {% extends 'kondate/base.html' %}
-{% block title %}Week of {{ week_start|date:"M j" }}{% endblock %}
+{% block title %}Plan · {{ week_label }}{% endblock %}
 {% block content %}
 <div class="pagehead">
   <div>
-    <h1>{{ week_start|date:"M j" }} – {{ week_end|date:"M j, Y" }}</h1>
-    <p class="muted">{{ planned_count }} meal{{ planned_count|pluralize }} planned
-      · <a href="{% url 'kondate:shopping_week' week_start|date:'Y-m-d' %}">shopping list →</a></p>
+    <p class="eyebrow">Plan</p>
+    <h1>{{ week_label }}</h1>
+    <p class="muted">
+      {% if planned_count %}{{ dinner_count }} dinner{{ dinner_count|pluralize }} planned{% if other_count %} · {{ other_count }} other meal{{ other_count|pluralize }}{% endif %}
+      {% else %}Nothing planned yet{% endif %}
+    </p>
   </div>
-  <div class="weeknav">
-    <a class="btn" href="{% url 'kondate:week_of' prev_week|date:'Y-m-d' %}" aria-label="Previous week">‹</a>
-    {% if week_start != this_week %}<a class="btn" href="{% url 'kondate:week' %}">This week</a>{% endif %}
-    <a class="btn" href="{% url 'kondate:week_of' next_week|date:'Y-m-d' %}" aria-label="Next week">›</a>
+  <div class="headactions">
+    {% include 'kondate/_weeknav.html' with url_name='kondate:week_of' %}
+    <a class="btn primary" href="{% url 'kondate:shopping_of' week_start|date:'Y-m-d' %}">
+      <svg aria-hidden="true"><use href="#i-basket"/></svg>Shopping list</a>
   </div>
 </div>
 
+{% if not planned_count %}
+<div class="callout">
+  <div>
+    <strong>Plan this week in a few taps.</strong>
+    <span class="muted">Tap <b>+</b> on a day to pick a recipe, or start from last week's plan.</span>
+  </div>
+  <form method="post" action="{% url 'kondate:week_copy_previous' week_start|date:'Y-m-d' %}">
+    {% csrf_token %}
+    <button class="btn" type="submit"><svg aria-hidden="true"><use href="#i-repeat"/></svg>Copy last week</button>
+  </form>
+</div>
+{% endif %}
+
 <div class="week">
   {% for day in days %}
-  <section class="day{% if day.date == today %} today{% elif day.date < today %} past{% endif %}">
-    <header class="dayhead">
+  <section class="day{% if day.date == today %} is-today{% elif day.date < today %} is-past{% endif %}" aria-labelledby="d{{ forloop.counter }}">
+    <header class="dayhead" id="d{{ forloop.counter }}">
       <span class="dow">{{ day.date|date:"D" }}</span>
       <span class="dom">{{ day.date|date:"j" }}</span>
-      <a class="add" href="{% url 'kondate:meal_new' %}?date={{ day.date|date:'Y-m-d' }}" aria-label="Add a meal on {{ day.date|date:'l' }}">+</a>
+      {% if day.date == today %}<span class="today-tag">Today</span>{% endif %}
     </header>
-    {% if day.meals %}
     <ul class="meals">
       {% for meal in day.meals %}
-      <li class="meal">
-        <span class="slot slot-{{ meal.slot }}">{{ meal.get_slot_display }}</span>
-        <a class="mealname" href="{% url 'kondate:meal_edit' meal.pk %}">{{ meal.title }}</a>
-        {% if meal.recipe and meal.note %}<span class="muted small">{{ meal.note }}</span>{% endif %}
+      <li class="meal slot-{{ meal.slot }}{% if not meal.recipe %} is-note{% endif %}">
+        <a href="{% url 'kondate:meal_edit' meal.pk %}">
+          {% if meal.slot != default_slot %}<span class="slotlabel">{{ meal.get_slot_display }}</span>{% endif %}
+          <span class="mealname">{{ meal.title|capfirst }}</span>
+          {% if meal.recipe and meal.note %}<span class="mealnote">{{ meal.note }}</span>{% endif %}
+        </a>
+        <form method="post" action="{% url 'kondate:meal_delete' meal.pk %}" class="mealremove">
+          {% csrf_token %}<button type="submit" aria-label="Remove {{ meal.title }} from {{ day.date|date:'l' }}"><svg aria-hidden="true"><use href="#i-x"/></svg></button>
+        </form>
       </li>
       {% endfor %}
     </ul>
-    {% else %}
-    <p class="empty"><a href="{% url 'kondate:meal_new' %}?date={{ day.date|date:'Y-m-d' }}">Plan something</a></p>
-    {% endif %}
+    <a class="addmeal" href="{% url 'kondate:meal_new' %}?date={{ day.date|date:'Y-m-d' }}"
+       data-plan-day="{{ day.date|date:'Y-m-d' }}" data-day-label="{{ day.date|date:'l, M j' }}">
+      <svg aria-hidden="true"><use href="#i-plus"/></svg><span>{% if day.meals %}Add{% else %}Plan {{ day.date|date:"l" }}{% endif %}</span>
+    </a>
   </section>
   {% endfor %}
 </div>
 
-{% if not planned_count %}
-<form method="post" action="{% url 'kondate:week_copy_previous' week_start|date:'Y-m-d' %}" class="center">
-  {% csrf_token %}
-  <button class="btn" type="submit">Copy last week's plan</button>
-</form>
-{% endif %}
+{# Quick-plan sheet. Without JS the "+" links fall back to the full meal form. #}
+<dialog class="sheet" aria-labelledby="planner-title" data-planner>
+  <form method="post" action="{% url 'kondate:meal_new' %}" class="sheet-body">
+    {% csrf_token %}
+    <input type="hidden" name="date" data-planner-date>
+    <header class="sheet-head">
+      <div>
+        <p class="eyebrow">Plan</p>
+        <h2 id="planner-title" data-planner-title>Pick a meal</h2>
+      </div>
+      <button type="button" class="iconbtn" data-close aria-label="Close"><svg aria-hidden="true"><use href="#i-x"/></svg></button>
+    </header>
+
+    <fieldset class="segmented" aria-label="Meal">
+      {% for value, label in slots %}
+      <label><input type="radio" name="slot" value="{{ value }}"{% if value == default_slot %} checked{% endif %}><span>{{ label }}</span></label>
+      {% endfor %}
+    </fieldset>
+
+    <label class="searchfield">
+      <svg aria-hidden="true"><use href="#i-search"/></svg>
+      <input type="search" data-planner-search placeholder="Search recipes or ingredients" autocomplete="off" aria-label="Search recipes">
+    </label>
+
+    <div class="chips" aria-label="Quick notes">
+      <button type="button" class="chip" data-note="Leftovers">Leftovers</button>
+      <button type="button" class="chip" data-note="Eat out">Eat out</button>
+      <button type="button" class="chip" data-note="Takeout">Takeout</button>
+    </div>
+
+    <div class="picklist">
+      {% if suggestions %}
+      <section data-suggestions>
+        <h3 class="eyebrow">Haven't had in a while</h3>
+        <ul>
+          {% for recipe in suggestions %}
+          <li><button type="submit" name="recipe" value="{{ recipe.pk }}" class="pick" formnovalidate>
+            <span>{{ recipe.name|capfirst }}</span>
+            <small>{% if recipe.last_planned %}last {{ recipe.last_planned|date:"M j" }}{% else %}not tried yet{% endif %}</small>
+          </button></li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+      <section>
+        <h3 class="eyebrow" data-all-label>All recipes</h3>
+        <ul>
+          {% for recipe in recipes %}
+          <li data-search="{{ recipe.search_text }}">
+            <button type="submit" name="recipe" value="{{ recipe.pk }}" class="pick" formnovalidate>
+              <span>{{ recipe.name|capfirst }}</span>
+              <small>{% if recipe.last_planned %}{{ recipe.last_planned|date:"M j" }}{% endif %}</small>
+            </button>
+          </li>
+          {% endfor %}
+        </ul>
+        <p class="muted small" data-no-match hidden>No recipe matches. Add it as a note below.</p>
+      </section>
+    </div>
+
+    <footer class="sheet-foot">
+      <input type="text" name="note" data-planner-note maxlength="200" placeholder="Or just a note: “tacos at grandma's”" aria-label="Note" required>
+      <button type="submit" class="btn">Add note</button>
+    </footer>
+  </form>
+</dialog>
 {% endblock %}

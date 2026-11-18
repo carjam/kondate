@@ -8,11 +8,12 @@ A step-by-step runbook for getting kondate online. Expect it to take about 30 mi
 
 | Item | Status |
 |---|---|
-| Code | Done on branch `modernize`, in PR #1 (https://github.com/carjam/kondate/pull/1) |
-| CI | Passing: migration check, `check --deploy`, 49 tests on Postgres 17 |
-| Merged to `master` | **No.** This is step 0 below |
-| Supabase project | Not created |
-| Render service | Not created |
+| Code | Merged to `master` (PR #1) |
+| CI | Passing on `master`: migration check, `check --deploy`, 49 tests on Postgres 17 |
+| Supabase project | Created: `kondate`, West US (Oregon), Data API off, automatic RLS on |
+| Render service | Live at https://kondate-xxxx.onrender.com, auto-deploys from `master` |
+
+Everything below is done. Use it to rebuild the deployment from scratch, or as a reference for how it's set up. The day-to-day developer notes are in the README's *Production* section.
 
 ## How it fits together
 
@@ -28,31 +29,33 @@ phone / laptop ──HTTPS──▶ Render web service (free)          Supabase 
 
 ---
 
-## 0. Merge the PR
+## 0. Code on `master`
 
-`render.yaml` deploys the `master` branch, so merge PR #1 first.
-
-```bash
-gh pr merge 1 --squash --delete-branch   # or merge in the GitHub UI
-git checkout master && git pull
-```
+`render.yaml` deploys the `master` branch, so whatever you want live must be merged there first.
 
 ## 1. Supabase: create the database
 
-1. Go to https://supabase.com/dashboard and create a **New project**.
-   - **Name:** `kondate`
-   - **Database password:** click *Generate*, then **save it in your password manager now**. You need it for the connection string, and Supabase won't show it again. (You can reset it later.)
-   - **Region:** pick the one closest to the Render region. `render.yaml` pins Render to **Oregon**, so choose **West US (Oregon)** if it's offered, otherwise **West US (North California)**. Being close keeps every page load fast, because each query crosses this link.
-   - **Plan:** Free.
-2. Wait for the project to finish provisioning (a minute or two).
+Go to https://supabase.com/dashboard and create a **New project**. Fill in the form like this:
 
-### 1a. Lock down the auto-generated REST API (important)
+| Field | Choose | Why |
+|---|---|---|
+| **Organization** | Your org, on the Free plan | |
+| **GitHub** | Leave it unconnected | Django's migrations own the schema. Supabase's GitHub schema sync would conflict with them. |
+| **Project name** | `kondate` | |
+| **Database password** | **Generate a password**, then save it in your password manager right away | You need it for the connection string, and Supabase won't show it again. |
+| **Region** | Click **"Need a specific region?"** and choose **West US (Oregon)** (`us-west-2`). If that's missing, choose North California. | The plain "Americas" choice lets Supabase pick, and it may pick the East Coast. Render runs in Oregon, and every query crosses this link. |
+| **Enable Data API** | **Off** | See 1a. |
+| **Automatically expose new tables** | **Off** | Tables stay private even if the Data API is turned on later. |
+| **Enable automatic RLS** | **On** | Extra protection. It doesn't affect Django, which connects as the table owner, and Postgres doesn't apply RLS to a table's owner. |
+| **Postgres Type** | **Postgres (Default)** | OrioleDB is beta, and this can't be changed after the project is created. |
 
-Supabase automatically publishes the tables in the `public` schema through its Data API (PostgREST). Django creates all of its tables in `public`, including `auth_user` with your password hashes. Supabase only guards those tables if Row Level Security is on, and Django doesn't turn it on. kondate never uses the Data API, so switch it off:
+Wait a minute or two for the project to finish provisioning.
 
-- **Project Settings → Data API** (sometimes under *API*): **disable the Data API**. If there's no on/off switch, remove `public` from **Exposed schemas** instead.
+### 1a. Why the Data API must stay off
 
-Afterwards, **Advisors → Security Advisor** may still warn "RLS disabled in public". That warning is harmless once the Data API no longer exposes `public`, because Django is the only client and it connects as the database owner.
+Supabase can publish every table in the `public` schema through its Data API (PostgREST). Django creates all of its tables in `public`, including `auth_user` with the password hashes. kondate never uses the Data API, so it's turned off when the project is created (above).
+
+If the API ever got turned on, turn it off again under **Project Settings → Data API**, or remove `public` from **Exposed schemas**. Automatic RLS is a second layer of protection, but the API being off is the main one.
 
 ### 1b. Get the connection string
 
@@ -63,34 +66,46 @@ Afterwards, **Advisors → Security Advisor** may still warn "RLS disabled in pu
 3. Copy the URI. It looks like:
 
    ```
-   postgresql://postgres.<project-ref>:[YOUR-PASSWORD]@aws-0-<region>.pooler.supabase.com:5432/postgres
+   postgresql://postgres.<project-ref>:[YOUR-PASSWORD]@aws-1-us-west-2.pooler.supabase.com:5432/postgres
    ```
 
-4. Replace `[YOUR-PASSWORD]` with the password from step 1, and append `?sslmode=require`:
+   The host prefix (`aws-0-`, `aws-1-`, …) varies by project. Use exactly what Supabase shows. Check two things: the username is `postgres.<project-ref>`, not plain `postgres`, and the port is `5432`.
+
+4. Replace `[YOUR-PASSWORD]` (brackets included) with the password from step 1, and append `?sslmode=require`:
 
    ```
-   postgresql://postgres.abcdefghijkl:s3cret%21pass@aws-0-us-west-2.pooler.supabase.com:5432/postgres?sslmode=require
+   postgresql://postgres.abcdefghijkl:PASSWORD@aws-1-us-west-2.pooler.supabase.com:5432/postgres?sslmode=require
    ```
 
-   **URL-encode the password** if it has special characters (`!` → `%21`, `@` → `%40`, `#` → `%23`, `/` → `%2F`, `:` → `%3A`). Encode it with:
+   Build it in a text editor and paste it as plain text. Some editors and terminals turn a pasted URL into a Markdown link (`[…](…)`), and Django then fails with `UnknownSchemeError: Scheme '://' is unknown`.
+
+   Supabase's generated passwords are letters and digits only. If you set your own, **URL-encode it** when it has special characters (`!` → `%21`, `@` → `%40`, `#` → `%23`, `/` → `%2F`, `:` → `%3A`). Encode it with:
 
    ```bash
    python3 -c "import urllib.parse,getpass; print(urllib.parse.quote(getpass.getpass('pw: '), safe=''))"
    ```
 
-5. Optional: test the string from your machine before involving Render.
+5. Optional: test the string from your machine before involving Render. Run this from the repo root. `read -s` keeps the URI out of your shell history and off the screen; paste it at the prompt and press Enter (nothing is shown while you paste).
 
    ```bash
-   cd ~/Workspace/kondate
-   DATABASE_URL='postgresql://…?sslmode=require' DJANGO_DEBUG=1 .venv/bin/python manage.py showmigrations kondate
+   read -rsp 'DATABASE_URL: ' DATABASE_URL && echo && export DATABASE_URL
+   DJANGO_DEBUG=1 .venv/bin/python manage.py showmigrations kondate
+   unset DATABASE_URL
    ```
 
    Success is a list of migrations marked `[ ]`, meaning the connection works and nothing has run yet. Don't run `migrate` here; Render will do it on first boot. (It's harmless if you do, since migrate is idempotent.)
 
+   Never paste the URI (with its password) into chat, tickets or commands typed on the command line. If it leaks, reset the password (below) before anything depends on it.
+
+### 1c. Resetting the database password
+
+The password is under **Database → Settings** (`https://supabase.com/dashboard/project/<project-ref>/database/settings`) → *Database password* → **Reset database password**. It is no longer under *Project Settings*. After a reset, update `DATABASE_URL` in Render (*Service → Environment*), which redeploys the service.
+
 ## 2. Render: create the web service
 
-1. Go to https://dashboard.render.com and sign in with GitHub. If Render can't see the private `carjam/kondate` repo, grant access under **Account Settings → GitHub → Configure**.
-2. Choose **New → Blueprint**, select `carjam/kondate`, and use branch `master`. Render reads `render.yaml` and proposes one web service, **kondate** (free plan, Oregon).
+1. Go to https://dashboard.render.com and sign in with GitHub.
+2. Choose **New → Blueprint**, select `carjam/kondate`, and use branch `master`. If you enter a Blueprint name, use `kondate`. Render reads `render.yaml` and proposes one web service, **kondate** (free plan, Oregon).
+   - **Repo not listed?** Render's GitHub app only sees the repos you've granted it. Go to https://github.com/settings/installations → **Render** → **Configure** → *Repository access*, add `kondate` (*Only select repositories* keeps access narrow), click **Save**, then refresh the Render page.
 3. Render prompts for the variables marked `sync: false`:
 
    | Variable | Value |
@@ -106,7 +121,7 @@ Afterwards, **Advisors → Security Advisor** may still warn "RLS disabled in pu
    - **Build:** `pip install` + `collectstatic` (about 1–2 minutes).
    - **Start:** `migrate` creates the tables and loads the seed recipes, `ensure_superuser` prints `created '<you>'`, then gunicorn starts.
    - The health check on `/healthz` turns green, and the service shows **Live**.
-5. Note the URL: `https://kondate-xxxx.onrender.com`. Render adds a suffix if the name is taken. The app trusts this hostname automatically through `RENDER_EXTERNAL_HOSTNAME`, so no host settings are needed.
+5. Note the URL. The current deployment is `https://kondate-xxxx.onrender.com`; Render adds a random suffix to the service name. The app trusts this hostname automatically through `RENDER_EXTERNAL_HOSTNAME`, so no host settings are needed.
 
 ## 3. Verify
 
@@ -135,12 +150,13 @@ Afterwards, **Advisors → Security Advisor** may still warn "RLS disabled in pu
 **Backups: the free tier gives you no backups of your own.** Take one occasionally, especially before big edits:
 
 ```bash
-cd ~/Workspace/kondate
+# From the repo root
+read -rsp 'DATABASE_URL: ' DATABASE_URL && echo && export DATABASE_URL
 # Portable JSON (works with any database Django supports)
-DATABASE_URL='postgresql://…?sslmode=require' DJANGO_DEBUG=1 \
-  .venv/bin/python manage.py dumpdata kondate auth.user --indent 1 > backup-$(date +%F).json
+DJANGO_DEBUG=1 .venv/bin/python manage.py dumpdata kondate auth.user --indent 1 > backup-$(date +%F).json
 # Or plain SQL, if you have the Postgres client tools installed
-pg_dump 'postgresql://…?sslmode=require' > backup-$(date +%F).sql
+pg_dump "$DATABASE_URL" > backup-$(date +%F).sql
+unset DATABASE_URL
 ```
 
 To restore the JSON into a fresh database: `migrate`, then `loaddata backup-YYYY-MM-DD.json`. Delete the seed rows first if they collide.
@@ -161,7 +177,9 @@ Keep backups out of git. They contain password hashes.
 |---|---|
 | Deploy fails: `ImproperlyConfigured: DJANGO_SECRET_KEY must be set` | The variable was deleted. Add `DJANGO_SECRET_KEY` back (choose *Generate*). |
 | Boot log: `Network is unreachable` / `could not translate host name` | You used the **Direct connection** string. Switch to the **Session pooler** URI (step 1b). |
-| Boot log: `password authentication failed` | Wrong password, or special characters not URL-encoded. Re-encode it, or reset the DB password in Supabase (*Project Settings → Database*). |
+| Boot log: `password authentication failed` | Wrong password, or special characters not URL-encoded. Re-encode it, or reset the DB password in Supabase (*Database → Settings*, see 1c) and update `DATABASE_URL` in Render. |
+| `UnknownSchemeError: Scheme '://' is unknown` | The value isn't a plain URI. It was probably pasted as a Markdown link (`[…](…)`). Paste only the `postgresql://…` string. |
+| Render's Blueprint list doesn't show the repo | Grant Render's GitHub app access to it (step 2). |
 | Boot log: `Tenant or user not found` | The username in the URI must be `postgres.<project-ref>` for the pooler, not plain `postgres`. |
 | Connection errors after days of working fine | The Supabase project was paused. Restore it (section 5). |
 | `Bad Request (400)` in the browser | The host isn't allowed. Set `DJANGO_ALLOWED_HOSTS` for any custom domain. |

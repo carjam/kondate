@@ -382,6 +382,26 @@ def test_admin_link_only_for_staff(client_in, user):
     assert b"/admin/" in client_in.get(url).content
 
 
+def test_pages_send_a_strict_content_security_policy(client_in):
+    policy = client_in.get(reverse("kondate:week"))["Content-Security-Policy"]
+    assert "script-src 'self'" in policy and "style-src 'self'" in policy
+    assert "unsafe-inline" not in policy
+
+
+def test_templates_have_no_inline_styles_or_scripts():
+    """The CSP forbids them, so they'd silently break in the browser."""
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    offenders = [
+        str(path.relative_to(root))
+        for path in [*root.glob("kondate/templates/**/*.html"), *root.glob("templates/**/*.html")]
+        if re.search(r'style="|<script(?![^>]*\bsrc=)|\son[a-z]+="', path.read_text())
+    ]
+    assert offenders == []
+
+
 # --- ops --------------------------------------------------------------------
 
 def test_ensure_superuser(monkeypatch, django_user_model):

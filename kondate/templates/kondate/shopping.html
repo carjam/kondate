@@ -26,9 +26,7 @@
         <strong><span data-remaining>{{ shopping.remaining }}</span> left</strong>
         <span class="muted">of <span data-total>{{ shopping.total }}</span></span>
       </div>
-      <div class="bar" role="progressbar" aria-label="Items ticked off" aria-valuemin="0" aria-valuemax="{{ shopping.total }}" aria-valuenow="{{ shopping.done }}">
-        <span style="width: {% widthratio shopping.done shopping.total 100 %}%"></span>
-      </div>
+      <progress class="bar" max="{{ shopping.total }}" value="{{ shopping.done }}" aria-label="Items ticked off"></progress>
       <label class="toggle small"><input type="checkbox" data-hide-done> Hide ticked</label>
     </div>
     {% endif %}

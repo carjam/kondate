@@ -65,7 +65,23 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.LoginRequiredMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "mysite.middleware.ContentSecurityPolicyMiddleware",
 ]
+
+# Everything is served from this origin: no inline script or style, no CDNs.
+# data: images are the inline SVG favicon. Set CSP_REPORT_ONLY=1 to test a
+# change to this policy in the browser console without enforcing it.
+CSP_DIRECTIVES = {
+    "default-src": "'self'",
+    "script-src": "'self'",
+    "style-src": "'self'",
+    "img-src": "'self' data:",
+    "object-src": "'none'",
+    "base-uri": "'none'",
+    "form-action": "'self'",
+    "frame-ancestors": "'none'",
+}
+CSP_REPORT_ONLY = env_bool("CSP_REPORT_ONLY", default=False)
 
 ROOT_URLCONF = "mysite.urls"
 

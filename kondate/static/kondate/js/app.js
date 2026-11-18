@@ -83,11 +83,8 @@
       var total = counted.length;
       var remaining = $("[data-remaining]");
       if (remaining) remaining.textContent = left;
-      var bar = $("[data-progress] .bar");
-      if (bar && total) {
-        bar.setAttribute("aria-valuenow", String(total - left));
-        $("span", bar).style.width = Math.round(((total - left) / total) * 100) + "%";
-      }
+      var bar = $("[data-progress] progress");
+      if (bar) bar.value = total - left;
     }
 
     // Ticks can finish out of order; only the newest refresh may write the text.

@@ -135,7 +135,3 @@ kondate/
 mysite/          settings, urls, wsgi, CSP middleware
 render.yaml      Render blueprint
 ```
-
-## Pending schema cleanup
-
-Migration `0003_ingredient_stock` replaced `Ingredient.is_staple` with `Ingredient.stock` using expand/contract. Django no longer knows about the `is_staple` column, but the column stays in the database (with a database default) so the previous release keeps working while a deploy overlaps old and new instances. Once 0003 is live, a follow-up migration can drop it with `SeparateDatabaseAndState(database_operations=[RunSQL("ALTER TABLE kondate_ingredient DROP COLUMN is_staple")])`.
